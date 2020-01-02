@@ -398,14 +398,16 @@ public interface Context extends Container, ContextBind {
     /**
      * Obtain the document root for this Context.
      *
-     * @return An absolute pathname, a relative pathname, or a URL.
+     * @return An absolute pathname or a relative (to the Host's appBase)
+     *         pathname.
      */
     public String getDocBase();
 
 
     /**
-     * Set the document root for this Context.  This can be an absolute
-     * pathname, a relative pathname, or a URL.
+     * Set the document root for this Context. This can be either an absolute
+     * pathname or a relative pathname. Relative pathnames are relative to the
+     * containing Host's appBase.
      *
      * @param docBase The new document root
      */
@@ -699,8 +701,8 @@ public interface Context extends Container, ContextBind {
     public void setJarScanner(JarScanner jarScanner);
 
     /**
-     * @return the {@link Authenticator} that is used by this context or
-     * <code>null</code> if none is used.
+     * @return the {@link Authenticator} that is used by this context. This is
+     *         always non-{@code null} for a started Context
      */
     public Authenticator getAuthenticator();
 
@@ -875,7 +877,9 @@ public interface Context extends Container, ContextBind {
      * @param pattern URL pattern to be mapped
      * @param name Name of the corresponding servlet to execute
      */
-    public void addServletMapping(String pattern, String name);
+    public default void addServletMappingDecoded(String pattern, String name) {
+        addServletMappingDecoded(pattern, name, false);
+    }
 
 
     /**
@@ -887,7 +891,7 @@ public interface Context extends Container, ContextBind {
      * @param jspWildcard true if name identifies the JspServlet
      * and pattern contains a wildcard; false otherwise
      */
-    public void addServletMapping(String pattern, String name,
+    public void addServletMappingDecoded(String pattern, String name,
             boolean jspWildcard);
 
 
@@ -925,6 +929,14 @@ public interface Context extends Container, ContextBind {
      */
     public void addWrapperListener(String listener);
 
+
+    /**
+     * Factory method to create and return a new InstanceManager
+     * instance. This can be used for framework integration or easier
+     * configuration with custom Context implementations.
+     * @return the instance manager
+     */
+    public InstanceManager createInstanceManager();
 
     /**
      * Factory method to create and return a new Wrapper instance, of
@@ -967,13 +979,30 @@ public interface Context extends Container, ContextBind {
 
 
     /**
-     * @return the error page entry for the specified Java exception type,
-     * if any; otherwise return <code>null</code>.
-     *
      * @param exceptionType Exception type to look up
+     *
+     * @return the error page entry for the specified Java exception type,
+     *         if any; otherwise return {@code null}.
+     *
+     * @deprecated Unused. Will be removed in Tomcat 10.
+     *             Use {@link #findErrorPage(Throwable)} instead.
      */
+    @Deprecated
     public ErrorPage findErrorPage(String exceptionType);
 
+
+    /**
+     * Find and return the ErrorPage instance for the specified exception's
+     * class, or an ErrorPage instance for the closest superclass for which
+     * there is such a definition.  If no associated ErrorPage instance is
+     * found, return <code>null</code>.
+     *
+     * @param throwable The exception type for which to find an ErrorPage
+     *
+     * @return the error page entry for the specified Java exception type,
+     *         if any; otherwise return {@code null}.
+     */
+    public ErrorPage findErrorPage(Throwable throwable);
 
 
     /**
@@ -1085,7 +1114,11 @@ public interface Context extends Container, ContextBind {
      * HTTP status code, if any; otherwise return <code>null</code>.
      *
      * @param status HTTP status code to look up
+     *
+     * @deprecated Unused. Will be removed in Tomcat 10.
+     *             Use {@link #findErrorPage(int)} instead.
      */
+    @Deprecated
     public String findStatusPage(int status);
 
 
@@ -1093,7 +1126,11 @@ public interface Context extends Container, ContextBind {
      * @return the set of HTTP status codes for which error pages have
      * been specified.  If none are specified, a zero-length array
      * is returned.
+     *
+     * @deprecated Unused. Will be removed in Tomcat 10.
+     *             Use {@link #findErrorPages()} instead.
      */
+    @Deprecated
     public int[] findStatusPages();
 
 
@@ -1356,6 +1393,7 @@ public interface Context extends Container, ContextBind {
      */
     public JspConfigDescriptor getJspConfigDescriptor();
 
+
     /**
      * Set the JspConfigDescriptor for this context.
      * A null value indicates there is not JSP configuration.
@@ -1363,6 +1401,7 @@ public interface Context extends Container, ContextBind {
      * @param descriptor the new JSP configuration
      */
     public void setJspConfigDescriptor(JspConfigDescriptor descriptor);
+
 
     /**
      * Add a ServletContainerInitializer instance to this web application.
@@ -1373,6 +1412,7 @@ public interface Context extends Container, ContextBind {
      */
     public void addServletContainerInitializer(
             ServletContainerInitializer sci, Set<Class<?>> classes);
+
 
     /**
      * Is this Context paused whilst it is reloaded?
@@ -1388,6 +1428,7 @@ public interface Context extends Container, ContextBind {
      * @return <code>true</code> for a legacy Servlet 2.2 webapp
      */
     boolean isServlet22();
+
 
     /**
      * Notification that Servlet security has been dynamically set in a
@@ -1444,7 +1485,7 @@ public interface Context extends Container, ContextBind {
     /**
      * @return The version of this web application, used to differentiate
      * different versions of the same web application when using parallel
-     * deployment.
+     * deployment. If not specified, defaults to the empty string.
      */
     public String getWebappVersion();
 
@@ -1766,4 +1807,102 @@ public interface Context extends Container, ContextBind {
      * @see #setUseRelativeRedirects(boolean)
      */
     public boolean getUseRelativeRedirects();
+
+    /**
+     * Are paths used in calls to obtain a request dispatcher expected to be
+     * encoded? This affects both how Tomcat handles calls to obtain a request
+     * dispatcher as well as how Tomcat generates paths used to obtain request
+     * dispatchers internally.
+     *
+     * @param dispatchersUseEncodedPaths {@code true} to use encoded paths,
+     *        otherwise {@code false}
+     */
+    public void setDispatchersUseEncodedPaths(boolean dispatchersUseEncodedPaths);
+
+    /**
+     * Are paths used in calls to obtain a request dispatcher expected to be
+     * encoded? This applys to both how Tomcat handles calls to obtain a request
+     * dispatcher as well as how Tomcat generates paths used to obtain request
+     * dispatchers internally.
+     *
+     * @return {@code true} if encoded paths will be used, otherwise
+     *         {@code false}
+     */
+    public boolean getDispatchersUseEncodedPaths();
+
+    /**
+     * Set the default request body encoding for this web application.
+     *
+     * @param encoding The default encoding
+     */
+    public void setRequestCharacterEncoding(String encoding);
+
+    /**
+     * Get the default request body encoding for this web application.
+     *
+     * @return The default request body encoding
+     */
+    public String getRequestCharacterEncoding();
+
+    /**
+     * Set the default response body encoding for this web application.
+     *
+     * @param encoding The default encoding
+     */
+    public void setResponseCharacterEncoding(String encoding);
+
+    /**
+     * Get the default response body encoding for this web application.
+     *
+     * @return The default response body encoding
+     */
+    public String getResponseCharacterEncoding();
+
+    /**
+     * Configure if, when returning a context path from {@link
+     * javax.servlet.http.HttpServletRequest#getContextPath()}, the return value
+     * is allowed to contain multiple leading '/' characters.
+     *
+     * @param allowMultipleLeadingForwardSlashInPath The new value for the flag
+     */
+    public void setAllowMultipleLeadingForwardSlashInPath(
+            boolean allowMultipleLeadingForwardSlashInPath);
+
+    /**
+     * When returning a context path from {@link
+     * javax.servlet.http.HttpServletRequest#getContextPath()}, is it allowed to
+     * contain multiple leading '/' characters?
+     *
+     * @return <code>true</code> if multiple leading '/' characters are allowed,
+     *         otherwise <code>false</code>
+     */
+    public boolean getAllowMultipleLeadingForwardSlashInPath();
+
+
+    public void incrementInProgressAsyncCount();
+
+
+    public void decrementInProgressAsyncCount();
+
+
+    /**
+     * Configure whether Tomcat will attempt to create an upload target used by
+     * this web application if it does not exist when the web application
+     * attempts to use it.
+     *
+     * @param createUploadTargets {@code true} if Tomcat should attempt to
+     *          create the upload target, otherwise {@code false}
+     */
+    public void setCreateUploadTargets(boolean createUploadTargets);
+
+
+    /**
+     * Will Tomcat attempt to create an upload target used by this web
+     * application if it does not exist when the web application attempts to use
+     * it?
+     *
+     * @return {@code true} if Tomcat will attempt to create an upload target
+     *         otherwise {@code false}
+     */
+    public boolean getCreateUploadTargets();
 }

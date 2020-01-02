@@ -42,8 +42,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-import static org.junit.Assert.fail;
-
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -55,6 +53,7 @@ import org.apache.catalina.LifecycleState;
 import org.apache.catalina.Manager;
 import org.apache.catalina.Server;
 import org.apache.catalina.Service;
+import org.apache.catalina.Session;
 import org.apache.catalina.WebResourceRoot;
 import org.apache.catalina.connector.Connector;
 import org.apache.catalina.core.AprLifecycleListener;
@@ -67,17 +66,32 @@ import org.apache.catalina.webresources.StandardRoot;
 import org.apache.coyote.http11.Http11NioProtocol;
 import org.apache.tomcat.util.buf.ByteChunk;
 import org.apache.tomcat.util.collections.CaseInsensitiveKeyMap;
+import org.apache.tomcat.util.net.TesterSupport;
+import org.apache.tomcat.util.scan.StandardJarScanFilter;
+import org.apache.tomcat.util.scan.StandardJarScanner;
 
 /**
  * Base test case that provides a Tomcat instance for each test - mainly so we
  * don't have to keep writing the cleanup code.
  */
 public abstract class TomcatBaseTest extends LoggingBaseTest {
-    private static final int DEFAULT_CLIENT_TIMEOUT_MS = 300_000;
-    private Tomcat tomcat;
-    private boolean accessLogEnabled = false;
+
+    /*
+     * Ensures APR Library.initialize() and Library.terminate() don't interfere
+     * with the calls from the Lifecycle listener and trigger a JVM crash
+     */
+    @SuppressWarnings("unused")
+    private static final boolean ignored = TesterSupport.OPENSSL_AVAILABLE;
+
+    // Used by parameterized tests. Defined here to reduce duplication.
+    protected static final Boolean[] booleans = new Boolean[] { Boolean.FALSE, Boolean.TRUE };
+
+    protected static final int DEFAULT_CLIENT_TIMEOUT_MS = 300_000;
 
     public static final String TEMP_DIR = System.getProperty("java.io.tmpdir");
+
+    private Tomcat tomcat;
+    private boolean accessLogEnabled = false;
 
     /**
      * Make the Tomcat instance available to sub-classes.
@@ -104,6 +118,11 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
             throws LifecycleException {
         File appDir = new File("test/webapp");
         Context ctx = tomcat.addWebapp(null, "/test", appDir.getAbsolutePath());
+
+        StandardJarScanner scanner = (StandardJarScanner) ctx.getJarScanner();
+        StandardJarScanFilter filter = (StandardJarScanFilter) scanner.getJarScanFilter();
+        filter.setTldSkip(filter.getTldSkip() + ",testclasses");
+        filter.setPluggabilitySkip(filter.getPluggabilitySkip() + ",testclasses");
 
         if (addJstl) {
             File lib = new File("webapps/examples/WEB-INF/lib");
@@ -143,7 +162,7 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
 
         File appBase = new File(getTemporaryDirectory(), "webapps");
         if (!appBase.exists() && !appBase.mkdir()) {
-            fail("Unable to create appBase for test");
+            Assert.fail("Unable to create appBase for test");
         }
 
         tomcat = new TomcatWithFastSessionIDs();
@@ -445,11 +464,12 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
             StringBuilder value;
             Object attribute;
 
+            response.setContentType("text/plain");
+            response.setCharacterEncoding("UTF-8");
+
             ServletContext ctx = this.getServletContext();
             HttpSession session = request.getSession(false);
             PrintWriter out = response.getWriter();
-
-            response.setContentType("text/plain");
 
             out.println("CONTEXT-NAME: " + ctx.getServletContextName());
             out.println("CONTEXT-PATH: " + ctx.getContextPath());
@@ -615,38 +635,48 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
         return out;
     }
 
-    public static int getUrl(String path, ByteChunk out,
-            Map<String, List<String>> resHead) throws IOException {
+    public static int getUrl(String path, ByteChunk out, Map<String, List<String>> resHead)
+            throws IOException {
         return getUrl(path, out, null, resHead);
     }
 
-    public static int headUrl(String path, ByteChunk out,
-            Map<String, List<String>> resHead) throws IOException {
+    public static int getUrl(String path, ByteChunk out, boolean followRedirects)
+            throws IOException {
+        return methodUrl(path, out, DEFAULT_CLIENT_TIMEOUT_MS, null, null, "GET", followRedirects);
+    }
+
+    public static int headUrl(String path, ByteChunk out, Map<String, List<String>> resHead)
+            throws IOException {
         return methodUrl(path, out, DEFAULT_CLIENT_TIMEOUT_MS, null, resHead, "HEAD");
     }
 
-    public static int getUrl(String path, ByteChunk out,
-            Map<String, List<String>> reqHead,
+    public static int getUrl(String path, ByteChunk out, Map<String, List<String>> reqHead,
             Map<String, List<String>> resHead) throws IOException {
         return getUrl(path, out, DEFAULT_CLIENT_TIMEOUT_MS, reqHead, resHead);
     }
 
     public static int getUrl(String path, ByteChunk out, int readTimeout,
-            Map<String, List<String>> reqHead,
-            Map<String, List<String>> resHead) throws IOException {
+            Map<String, List<String>> reqHead, Map<String, List<String>> resHead)
+            throws IOException {
         return methodUrl(path, out, readTimeout, reqHead, resHead, "GET");
     }
 
     public static int methodUrl(String path, ByteChunk out, int readTimeout,
-            Map<String, List<String>> reqHead,
-            Map<String, List<String>> resHead,
-            String method) throws IOException {
+            Map<String, List<String>> reqHead, Map<String, List<String>> resHead, String method)
+            throws IOException {
+        return methodUrl(path, out, readTimeout, reqHead, resHead, method, true);
+    }
+
+    public static int methodUrl(String path, ByteChunk out, int readTimeout,
+                Map<String, List<String>> reqHead, Map<String, List<String>> resHead, String method,
+                boolean followRedirects) throws IOException {
 
         URL url = new URL(path);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setUseCaches(false);
         connection.setReadTimeout(readTimeout);
         connection.setRequestMethod(method);
+        connection.setInstanceFollowRedirects(followRedirects);
         if (reqHead != null) {
             for (Map.Entry<String, List<String>> entry : reqHead.entrySet()) {
                 StringBuilder valueList = new StringBuilder();
@@ -663,8 +693,13 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
         connection.connect();
         int rc = connection.getResponseCode();
         if (resHead != null) {
-            Map<String, List<String>> head = connection.getHeaderFields();
-            resHead.putAll(head);
+            // Skip the entry with null key that is used for the response line
+            // that some Map implementations may not accept.
+            for (Map.Entry<String, List<String>> entry : connection.getHeaderFields().entrySet()) {
+                if (entry.getKey() != null) {
+                    resHead.put(entry.getKey(), entry.getValue());
+                }
+            }
         }
         InputStream is;
         if (rc < 400) {
@@ -794,6 +829,29 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
         }
     }
 
+    protected static String getSingleHeader(String header, Map<String,List<String>> headers) {
+        // Assume headers is never null
+
+        // Assume that either:
+        // a) is correct since HTTP headers are case insensitive but most Map
+        //    implementations are case-sensitive; or
+        // b) CaseInsensitiveKeyMap or similar is used
+        List<String> headerValues = headers.get(header);
+
+        // Looking for a single header. No matches are OK
+        if (headerValues == null) {
+            return null;
+        }
+
+        // Found a single header - return the header value
+        if (headerValues.size() == 1) {
+            return headerValues.get(0);
+        }
+
+        // More than one header value is an error
+        throw new IllegalStateException("Found multiple headers for [" + header + "]");
+    }
+
     private static class TomcatWithFastSessionIDs extends Tomcat {
 
         @Override
@@ -839,8 +897,9 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
                 Files.copy(file, destPath);
                 // Make sure that HostConfig thinks all newly copied files have
                 // been modified.
-                destPath.toFile().setLastModified(
-                        System.currentTimeMillis() - 2 * HostConfig.FILE_MODIFICATION_RESOLUTION_MS);
+                Assert.assertTrue("Failed to set last modified for [" + destPath + "]",
+                        destPath.toFile().setLastModified(
+                        System.currentTimeMillis() - 2 * HostConfig.FILE_MODIFICATION_RESOLUTION_MS));
                 return FileVisitResult.CONTINUE;
             }
 
@@ -856,5 +915,20 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
                 // NO-OP
                 return FileVisitResult.CONTINUE;
             }});
+    }
+
+
+    public static void skipTldsForResourceJars(Context context) {
+        StandardJarScanner scanner = (StandardJarScanner) context.getJarScanner();
+        StandardJarScanFilter filter = (StandardJarScanFilter) scanner.getJarScanFilter();
+        filter.setTldSkip(filter.getTldSkip() + ",resources*.jar");
+    }
+
+
+    public static void forceSessionMaxInactiveInterval(Context context, int newIntervalSecs) {
+        Session[] sessions = context.getManager().findSessions();
+        for (Session session : sessions) {
+            session.setMaxInactiveInterval(newIntervalSecs);
+        }
     }
 }

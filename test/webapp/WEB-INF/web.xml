@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="ISO-8859-1"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!--
   Licensed to the Apache Software Foundation (ASF) under one or more
   contributor license agreements.  See the NOTICE file distributed with
@@ -128,6 +128,16 @@
       <include-coda>/bug5nnnn/bug55262-coda.jspf</include-coda>
       <include-coda>/bug5nnnn/bug55262-coda.jspf</include-coda>
       <default-content-type>text/plain</default-content-type>
+    </jsp-property-group>
+    <jsp-property-group>
+      <url-pattern>/jsp/encoding/bug60769a.jspx</url-pattern>
+      <page-encoding>UTF-8</page-encoding>
+      <is-xml>true</is-xml>
+    </jsp-property-group>
+    <jsp-property-group>
+      <url-pattern>/jsp/encoding/bug60769b.jspx</url-pattern>
+      <page-encoding>ISO-8859-1</page-encoding>
+      <is-xml>true</is-xml>
     </jsp-property-group>
   </jsp-config>
 

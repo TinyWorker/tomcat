@@ -38,6 +38,7 @@ import javax.servlet.ServletInputStream;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletMapping;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
@@ -264,6 +265,11 @@ public class TesterHttpServletRequest implements HttpServletRequest {
     }
 
     @Override
+    public HttpServletMapping getHttpServletMapping() {
+        throw new RuntimeException("Not implemented");
+    }
+
+    @Override
     public String getMethod() {
         return method;
     }
@@ -437,7 +443,17 @@ public class TesterHttpServletRequest implements HttpServletRequest {
     }
 
     @Override
-    public PushBuilder getPushBuilder() {
+    public PushBuilder newPushBuilder() {
+        throw new RuntimeException("Not implemented");
+    }
+
+    @Override
+    public boolean isTrailerFieldsReady() {
+        throw new RuntimeException("Not implemented");
+    }
+
+    @Override
+    public Map<String, String> getTrailerFields() {
         throw new RuntimeException("Not implemented");
     }
 }

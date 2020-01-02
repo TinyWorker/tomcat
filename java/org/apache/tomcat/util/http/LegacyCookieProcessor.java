@@ -18,13 +18,9 @@ package org.apache.tomcat.util.http;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.text.DateFormat;
 import java.text.FieldPosition;
-import java.text.SimpleDateFormat;
 import java.util.BitSet;
 import java.util.Date;
-import java.util.Locale;
-import java.util.TimeZone;
 
 import javax.servlet.http.Cookie;
 
@@ -44,7 +40,7 @@ import org.apache.tomcat.util.res.StringManager;
  * @author Costin Manolache
  * @author kevin seguin
  */
-public final class LegacyCookieProcessor implements CookieProcessor {
+public final class LegacyCookieProcessor extends CookieProcessorBase {
 
     private static final Log log = LogFactory.getLog(LegacyCookieProcessor.class);
 
@@ -62,26 +58,10 @@ public final class LegacyCookieProcessor implements CookieProcessor {
             '\t', ' ', '\"', '(', ')', ',', ':', ';', '<', '=', '>', '?', '@',
             '[', '\\', ']', '{', '}' };
 
-    private static final String COOKIE_DATE_PATTERN = "EEE, dd-MMM-yyyy HH:mm:ss z";
-    private static final ThreadLocal<DateFormat> COOKIE_DATE_FORMAT =
-        new ThreadLocal<DateFormat>() {
-        @Override
-        protected DateFormat initialValue() {
-            DateFormat df =
-                new SimpleDateFormat(COOKIE_DATE_PATTERN, Locale.US);
-            df.setTimeZone(TimeZone.getTimeZone("GMT"));
-            return df;
-        }
-    };
-
-    private static final String ANCIENT_DATE;
-
     static {
         for (char c : V0_SEPARATORS) {
             V0_SEPARATOR_FLAGS.set(c);
         }
-
-        ANCIENT_DATE = COOKIE_DATE_FORMAT.get().format(new Date(10000));
     }
 
     private final boolean STRICT_SERVLET_COMPLIANCE =
@@ -98,7 +78,6 @@ public final class LegacyCookieProcessor implements CookieProcessor {
     private final BitSet httpSeparatorFlags = new BitSet(128);
 
     private final BitSet allowedWithoutQuotes = new BitSet(128);
-
 
     public LegacyCookieProcessor() {
         // BitSet elements will default to false
@@ -179,9 +158,9 @@ public final class LegacyCookieProcessor implements CookieProcessor {
             }
         }
         if (getForwardSlashIsSeparator() && !allowHttpSepsInV0) {
-            allowedWithoutQuotes.set('/');
-        } else {
             allowedWithoutQuotes.clear('/');
+        } else {
+            allowedWithoutQuotes.set('/');
         }
     }
 
@@ -198,9 +177,9 @@ public final class LegacyCookieProcessor implements CookieProcessor {
             httpSeparatorFlags.clear('/');
         }
         if (forwardSlashIsSeparator && !getAllowHttpSepsInV0()) {
-            allowedWithoutQuotes.set('/');
-        } else {
             allowedWithoutQuotes.clear('/');
+        } else {
+            allowedWithoutQuotes.set('/');
         }
     }
 
@@ -344,6 +323,14 @@ public final class LegacyCookieProcessor implements CookieProcessor {
         if (cookie.isHttpOnly()) {
             buf.append("; HttpOnly");
         }
+
+        SameSiteCookies sameSiteCookiesValue = getSameSiteCookies();
+
+        if (!sameSiteCookiesValue.equals(SameSiteCookies.UNSET)) {
+            buf.append("; SameSite=");
+            buf.append(sameSiteCookiesValue.getValue());
+        }
+
         return buf.toString();
     }
 
@@ -515,7 +502,7 @@ public final class LegacyCookieProcessor implements CookieProcessor {
                     break;
                 default:
                     if (version == 0 &&
-                                isV0Separator((char)bytes[pos]) &&
+                                !isV0Separator((char)bytes[pos]) &&
                                 getAllowHttpSepsInV0() ||
                             !isHttpSeparator((char)bytes[pos]) ||
                             bytes[pos] == '=') {

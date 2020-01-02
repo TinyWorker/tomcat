@@ -17,12 +17,9 @@
  */
 package org.apache.tomcat.util.file;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URL;
 
 /**
  * This class is used to obtain {@link InputStream}s for configuration files
@@ -31,12 +28,20 @@ import java.net.URL;
  */
 public class ConfigFileLoader {
 
-    private static final File CATALINA_BASE_FILE;
-    private static final URI CATALINA_BASE_URI;
+    private static ConfigurationSource source;
 
-    static {
-        CATALINA_BASE_FILE = new File(System.getProperty("catalina.base"));
-        CATALINA_BASE_URI = CATALINA_BASE_FILE.toURI();
+    public static final ConfigurationSource getSource() {
+        if (ConfigFileLoader.source == null) {
+            // TODO: Add logging in Tomcat 10 when the default is silently used, or remove the default
+            return ConfigurationSource.DEFAULT;
+        }
+        return source;
+    }
+
+    public static final void setSource(ConfigurationSource source) {
+        if (ConfigFileLoader.source == null) {
+            ConfigFileLoader.source = source;
+        }
     }
 
     private ConfigFileLoader() {
@@ -57,25 +62,15 @@ public class ConfigFileLoader {
      * @throws IOException If an InputStream cannot be created using the
      *                     provided location
      */
+    @Deprecated
     public static InputStream getInputStream(String location) throws IOException {
-        // Location was originally always a file before URI support was added so
-        // try file first.
-
-        File f = new File(location);
-        if (!f.isAbsolute()) {
-            f = new File(CATALINA_BASE_FILE, location);
-        }
-        if (f.isFile()) {
-            return new FileInputStream(f);
-        }
-
-        // File didn't work so try URI.
-        // Using resolve() enables the code to handle relative paths that did
-        // not point to a file
-        URI uri = CATALINA_BASE_URI.resolve(location);
-
-        // Obtain the input stream we need
-        URL url = uri.toURL();
-        return url.openConnection().getInputStream();
+        return getSource().getResource(location).getInputStream();
     }
+
+
+    @Deprecated
+    public static URI getURI(String location) {
+        return getSource().getURI(location);
+    }
+
 }

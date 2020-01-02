@@ -16,7 +16,6 @@
  */
 package org.apache.catalina.session;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -26,13 +25,14 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.List;
 
 import javax.servlet.ServletContext;
 
 import org.apache.catalina.Context;
-import org.apache.catalina.Loader;
+import org.apache.catalina.Globals;
 import org.apache.catalina.Session;
-import org.apache.catalina.util.CustomObjectInputStream;
+import org.apache.juli.logging.Log;
 
 /**
  * Concrete implementation of the <b>Store</b> interface that utilizes
@@ -127,17 +127,17 @@ public final class FileStore extends StoreBase {
     @Override
     public int getSize() throws IOException {
         // Acquire the list of files in our storage directory
-        File file = directory();
-        if (file == null) {
-            return (0);
+        File dir = directory();
+        if (dir == null) {
+            return 0;
         }
-        String files[] = file.list();
+        String files[] = dir.list();
 
         // Figure out which files are sessions
         int keycount = 0;
         if (files != null) {
-            for (int i = 0; i < files.length; i++) {
-                if (files[i].endsWith(FILE_EXT)) {
+            for (String file : files) {
+                if (file.endsWith(FILE_EXT)) {
                     keycount++;
                 }
             }
@@ -172,24 +172,23 @@ public final class FileStore extends StoreBase {
     @Override
     public String[] keys() throws IOException {
         // Acquire the list of files in our storage directory
-        File file = directory();
-        if (file == null) {
-            return (new String[0]);
+        File dir = directory();
+        if (dir == null) {
+            return new String[0];
         }
-
-        String files[] = file.list();
+        String files[] = dir.list();
 
         // Bugzilla 32130
-        if((files == null) || (files.length < 1)) {
-            return (new String[0]);
+        if (files == null || files.length < 1) {
+            return new String[0];
         }
 
         // Build and return the list of session identifiers
-        ArrayList<String> list = new ArrayList<>();
+        List<String> list = new ArrayList<>();
         int n = FILE_EXT.length();
-        for (int i = 0; i < files.length; i++) {
-            if (files[i].endsWith(FILE_EXT)) {
-                list.add(files[i].substring(0, files[i].length() - n));
+        for (String file : files) {
+            if (file.endsWith(FILE_EXT)) {
+                list.add (file.substring(0, file.length() - n));
             }
         }
         return list.toArray(new String[list.size()]);
@@ -210,57 +209,33 @@ public final class FileStore extends StoreBase {
     public Session load(String id) throws ClassNotFoundException, IOException {
         // Open an input stream to the specified pathname, if any
         File file = file(id);
-        if (file == null) {
+        if (file == null || !file.exists()) {
             return null;
         }
 
-        if (!file.exists()) {
-            return null;
-        }
-        if (manager.getContext().getLogger().isDebugEnabled()) {
-            manager.getContext().getLogger().debug(sm.getString(getStoreName()+".loading",
-                             id, file.getAbsolutePath()));
+        Context context = getManager().getContext();
+        Log contextLog = context.getLogger();
+
+        if (contextLog.isDebugEnabled()) {
+            contextLog.debug(sm.getString(getStoreName()+".loading", id, file.getAbsolutePath()));
         }
 
-        ObjectInputStream ois = null;
-        Loader loader = null;
-        ClassLoader classLoader = null;
-        ClassLoader oldThreadContextCL = Thread.currentThread().getContextClassLoader();
+        ClassLoader oldThreadContextCL = context.bind(Globals.IS_SECURITY_ENABLED, null);
+
         try (FileInputStream fis = new FileInputStream(file.getAbsolutePath());
-                BufferedInputStream bis = new BufferedInputStream(fis)) {
-            Context context = manager.getContext();
-            if (context != null) {
-                loader = context.getLoader();
-            }
-            if (loader != null) {
-                classLoader = loader.getClassLoader();
-            }
-            if (classLoader == null) {
-                classLoader = getClass().getClassLoader();
-            } else {
-                Thread.currentThread().setContextClassLoader(classLoader);
-            }
-            ois = new CustomObjectInputStream(bis, classLoader);
+                ObjectInputStream ois = getObjectInputStream(fis)) {
 
             StandardSession session = (StandardSession) manager.createEmptySession();
             session.readObjectData(ois);
             session.setManager(manager);
             return session;
         } catch (FileNotFoundException e) {
-            if (manager.getContext().getLogger().isDebugEnabled()) {
-                manager.getContext().getLogger().debug("No persisted data file found");
+            if (contextLog.isDebugEnabled()) {
+                contextLog.debug("No persisted data file found");
             }
             return null;
         } finally {
-            if (ois != null) {
-                // Close the input stream
-                try {
-                    ois.close();
-                } catch (IOException f) {
-                    // Ignore
-                }
-            }
-            Thread.currentThread().setContextClassLoader(oldThreadContextCL);
+            context.unbind(Globals.IS_SECURITY_ENABLED, oldThreadContextCL);
         }
     }
 
@@ -284,7 +259,10 @@ public final class FileStore extends StoreBase {
             manager.getContext().getLogger().debug(sm.getString(getStoreName() + ".removing",
                              id, file.getAbsolutePath()));
         }
-        file.delete();
+
+        if (file.exists() && !file.delete()) {
+            throw new IOException(sm.getString("fileStore.deleteSessionFailed", file));
+        }
     }
 
 
@@ -333,23 +311,16 @@ public final class FileStore extends StoreBase {
         File file = new File(this.directory);
         if (!file.isAbsolute()) {
             Context context = manager.getContext();
-            if (context != null) {
-                ServletContext servletContext = context.getServletContext();
-                File work = (File)
-                    servletContext.getAttribute(ServletContext.TEMPDIR);
-                file = new File(work, this.directory);
-            } else {
-                throw new IllegalArgumentException("Parent Container is not a Context");
-            }
+            ServletContext servletContext = context.getServletContext();
+            File work = (File) servletContext.getAttribute(ServletContext.TEMPDIR);
+            file = new File(work, this.directory);
         }
         if (!file.exists() || !file.isDirectory()) {
             if (!file.delete() && file.exists()) {
-                throw new IOException(
-                        sm.getString("fileStore.deleteFailed", file));
+                throw new IOException(sm.getString("fileStore.deleteFailed", file));
             }
             if (!file.mkdirs() && !file.isDirectory()) {
-                throw new IOException(
-                        sm.getString("fileStore.createFailed", file));
+                throw new IOException(sm.getString("fileStore.createFailed", file));
             }
         }
         this.directoryFile = file;

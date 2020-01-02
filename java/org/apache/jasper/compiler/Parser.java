@@ -19,7 +19,6 @@ package org.apache.jasper.compiler;
 import java.io.CharArrayWriter;
 import java.io.FileNotFoundException;
 import java.util.Collection;
-import java.util.Iterator;
 
 import javax.servlet.jsp.tagext.TagAttributeInfo;
 import javax.servlet.jsp.tagext.TagFileInfo;
@@ -29,8 +28,8 @@ import javax.servlet.jsp.tagext.TagLibraryInfo;
 import org.apache.jasper.JasperException;
 import org.apache.jasper.JspCompilationContext;
 import org.apache.jasper.util.UniqueAttributesImpl;
+import org.apache.tomcat.Jar;
 import org.apache.tomcat.util.descriptor.tld.TldResourcePath;
-import org.apache.tomcat.util.scan.Jar;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.AttributesImpl;
 
@@ -104,14 +103,20 @@ class Parser implements TagConstants {
     /**
      * The main entry for Parser
      *
-     * @param pc
-     *            The ParseController, use for getting other objects in compiler
+     * @param pc  The ParseController, use for getting other objects in compiler
      *            and for parsing included pages
-     * @param reader
-     *            To read the page
-     * @param parent
-     *            The parent node to this page, null for top level page
+     * @param reader To read the page
+     * @param parent The parent node to this page, null for top level page
+     * @param isTagFile Is the page being parsed a tag file?
+     * @param directivesOnly Should only directives be parsed?
+     * @param jar JAR, if any, that this page was loaded from
+     * @param pageEnc The encoding of the source
+     * @param jspConfigPageEnc The encoding for the page
+     * @param isDefaultPageEncoding Is the page encoding the default?
+     * @param isBomPresent Is a BOM present in the source
      * @return list of nodes representing the parsed page
+     *
+     * @throws JasperException If an error occurs during parsing
      */
     public static Node.Nodes parse(ParserController pc, JspReader reader,
             Node parent, boolean isTagFile, boolean directivesOnly,
@@ -177,6 +182,13 @@ class Parser implements TagConstants {
 
     /**
      * Parse Attributes for a reader, provided for external use
+     *
+     * @param pc The parser
+     * @param reader The source
+     *
+     * @return The parsed attributes
+     *
+     * @throws JasperException If an error occurs during parsing
      */
     public static Attributes parseAttributes(ParserController pc,
             JspReader reader) throws JasperException {
@@ -374,9 +386,7 @@ class Parser implements TagConstants {
      */
     private void addInclude(Node parent, Collection<String> files) throws JasperException {
         if (files != null) {
-            Iterator<String> iter = files.iterator();
-            while (iter.hasNext()) {
-                String file = iter.next();
+            for (String file : files) {
                 AttributesImpl attrs = new AttributesImpl();
                 attrs.addAttribute("", "file", "file", "CDATA", file);
 

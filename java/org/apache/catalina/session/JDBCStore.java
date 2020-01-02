@@ -31,6 +31,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 import javax.naming.Context;
@@ -39,10 +40,10 @@ import javax.naming.NamingException;
 import javax.sql.DataSource;
 
 import org.apache.catalina.Container;
+import org.apache.catalina.Globals;
 import org.apache.catalina.LifecycleException;
-import org.apache.catalina.Loader;
 import org.apache.catalina.Session;
-import org.apache.catalina.util.CustomObjectInputStream;
+import org.apache.juli.logging.Log;
 import org.apache.tomcat.util.ExceptionUtils;
 
 /**
@@ -68,7 +69,7 @@ public class JDBCStore extends StoreBase {
     /**
      * Name to register for the background thread.
      */
-    protected final String threadName = "JDBCStore";
+    protected static final String threadName = "JDBCStore";
 
     /**
      * The connection username to use when trying to connect to the database.
@@ -105,6 +106,11 @@ public class JDBCStore extends StoreBase {
      * name of the JNDI resource
      */
     protected String dataSourceName = null;
+
+    /**
+     * Context local datasource.
+     */
+    private boolean localDataSource = false;
 
     /**
      * DataSource to use
@@ -454,6 +460,23 @@ public class JDBCStore extends StoreBase {
         return this.dataSourceName;
     }
 
+    /**
+     * @return if the datasource will be looked up in the webapp JNDI Context.
+     */
+    public boolean getLocalDataSource() {
+        return localDataSource;
+    }
+
+    /**
+     * Set to {@code true} to cause the datasource to be looked up in the webapp
+     * JNDI Context.
+     *
+     * @param localDataSource the new flag value
+     */
+    public void setLocalDataSource(boolean localDataSource) {
+      this.localDataSource = localDataSource;
+    }
+
 
     // --------------------------------------------------------- Public Methods
 
@@ -502,7 +525,7 @@ public class JDBCStore extends StoreBase {
                             preparedKeysSql.setLong(2, System.currentTimeMillis());
                         }
                         try (ResultSet rst = preparedKeysSql.executeQuery()) {
-                            ArrayList<String> tmpkeys = new ArrayList<>();
+                            List<String> tmpkeys = new ArrayList<>();
                             if (rst != null) {
                                 while (rst.next()) {
                                     tmpkeys.add(rst.getString(1));
@@ -591,11 +614,8 @@ public class JDBCStore extends StoreBase {
     @Override
     public Session load(String id) throws ClassNotFoundException, IOException {
         StandardSession _session = null;
-        Loader loader = null;
-        ClassLoader classLoader = null;
-        ObjectInputStream ois = null;
-        BufferedInputStream bis = null;
-        org.apache.catalina.Context context = manager.getContext();
+        org.apache.catalina.Context context = getManager().getContext();
+        Log contextLog = context.getLogger();
 
         synchronized (this) {
             int numberOfTries = 2;
@@ -605,7 +625,8 @@ public class JDBCStore extends StoreBase {
                     return null;
                 }
 
-                ClassLoader oldThreadContextCL = Thread.currentThread().getContextClassLoader();
+                ClassLoader oldThreadContextCL = context.bind(Globals.IS_SECURITY_ENABLED, null);
+
                 try {
                     if (preparedLoadSql == null) {
                         String loadSql = "SELECT " + sessionIdCol + ", "
@@ -619,48 +640,29 @@ public class JDBCStore extends StoreBase {
                     preparedLoadSql.setString(2, getName());
                     try (ResultSet rst = preparedLoadSql.executeQuery()) {
                         if (rst.next()) {
-                            bis = new BufferedInputStream(rst.getBinaryStream(2));
+                            try (ObjectInputStream ois =
+                                    getObjectInputStream(rst.getBinaryStream(2))) {
+                                if (contextLog.isDebugEnabled()) {
+                                    contextLog.debug(sm.getString(
+                                            getStoreName() + ".loading", id, sessionTable));
+                                }
 
-                            if (context != null) {
-                                loader = context.getLoader();
+                                _session = (StandardSession) manager.createEmptySession();
+                                _session.readObjectData(ois);
+                                _session.setManager(manager);
                             }
-                            if (loader != null) {
-                                classLoader = loader.getClassLoader();
-                            }
-                            if (classLoader == null) {
-                                classLoader = getClass().getClassLoader();
-                            } else {
-                                Thread.currentThread().setContextClassLoader(classLoader);
-                            }
-                            ois = new CustomObjectInputStream(bis, classLoader);
-
-                            if (manager.getContext().getLogger().isDebugEnabled()) {
-                                manager.getContext().getLogger().debug(sm.getString(getStoreName() + ".loading",
-                                        id, sessionTable));
-                            }
-
-                            _session = (StandardSession) manager.createEmptySession();
-                            _session.readObjectData(ois);
-                            _session.setManager(manager);
-                          } else if (manager.getContext().getLogger().isDebugEnabled()) {
-                            manager.getContext().getLogger().debug(getStoreName() + ": No persisted data object found");
+                        } else if (context.getLogger().isDebugEnabled()) {
+                            contextLog.debug(getStoreName() + ": No persisted data object found");
                         }
                         // Break out after the finally block
                         numberOfTries = 0;
                     }
                 } catch (SQLException e) {
-                    manager.getContext().getLogger().error(sm.getString(getStoreName() + ".SQLException", e));
+                    contextLog.error(sm.getString(getStoreName() + ".SQLException", e));
                     if (dbConnection != null)
                         close(dbConnection);
                 } finally {
-                    if (ois != null) {
-                        try {
-                            ois.close();
-                        } catch (IOException e) {
-                            // Ignore
-                        }
-                    }
-                    Thread.currentThread().setContextClassLoader(oldThreadContextCL);
+                    context.unbind(Globals.IS_SECURITY_ENABLED, oldThreadContextCL);
                     release(_conn);
                 }
                 numberOfTries--;
@@ -888,16 +890,26 @@ public class JDBCStore extends StoreBase {
             return dbConnection;
 
         if (dataSourceName != null && dataSource == null) {
+            org.apache.catalina.Context context = getManager().getContext();
+            ClassLoader oldThreadContextCL = null;
+            if (localDataSource) {
+                oldThreadContextCL = context.bind(Globals.IS_SECURITY_ENABLED, null);
+            }
+
             Context initCtx;
             try {
                 initCtx = new InitialContext();
                 Context envCtx = (Context) initCtx.lookup("java:comp/env");
                 this.dataSource = (DataSource) envCtx.lookup(this.dataSourceName);
             } catch (NamingException e) {
-                manager.getContext().getLogger().error(
+                context.getLogger().error(
                         sm.getString(getStoreName() + ".wrongDataSource",
                                 this.dataSourceName), e);
-           }
+            } finally {
+                if (localDataSource) {
+                    context.unbind(Globals.IS_SECURITY_ENABLED, oldThreadContextCL);
+                }
+            }
         }
 
         if (dataSource != null) {
@@ -908,8 +920,8 @@ public class JDBCStore extends StoreBase {
         if (driver == null) {
             try {
                 Class<?> clazz = Class.forName(driverName);
-                driver = (Driver) clazz.newInstance();
-            } catch (ClassNotFoundException | InstantiationException | IllegalAccessException e) {
+                driver = (Driver) clazz.getConstructor().newInstance();
+            } catch (ReflectiveOperationException e) {
                 manager.getContext().getLogger().error(
                         sm.getString(getStoreName() + ".checkConnectionClassNotFoundException",
                         e.toString()));

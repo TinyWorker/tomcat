@@ -21,7 +21,6 @@ import java.io.PrintWriter;
 
 import org.apache.catalina.Engine;
 import org.apache.catalina.Executor;
-import org.apache.catalina.Lifecycle;
 import org.apache.catalina.LifecycleListener;
 import org.apache.catalina.connector.Connector;
 import org.apache.catalina.core.StandardService;
@@ -32,12 +31,13 @@ import org.apache.catalina.core.StandardService;
 public class StandardServiceSF extends StoreFactoryBase {
 
     /**
-     * Store Children from this StandardService description
+     * Store the specified service element children.
      *
-     * @param aWriter
-     * @param indent
-     * @param aService
-     * @throws Exception
+     * @param aWriter Current output writer
+     * @param indent Indentation level
+     * @param aService Service to store
+     * @param parentDesc The element description
+     * @throws Exception Configuration storing error
      */
     @Override
     public void storeChildren(PrintWriter aWriter, int indent, Object aService,
@@ -45,8 +45,7 @@ public class StandardServiceSF extends StoreFactoryBase {
         if (aService instanceof StandardService) {
             StandardService service = (StandardService) aService;
             // Store nested <Listener> elements
-            LifecycleListener listeners[] = ((Lifecycle) service)
-                    .findLifecycleListeners();
+            LifecycleListener listeners[] = service.findLifecycleListeners();
             storeElementArray(aWriter, indent, listeners);
 
             // Store nested <Executor> elements

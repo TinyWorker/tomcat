@@ -46,19 +46,36 @@ public interface Processor {
      */
     SocketState process(SocketWrapperBase<?> socketWrapper, SocketEvent status) throws IOException;
 
+    /**
+     * Generate an upgrade token.
+     *
+     * @return An upgrade token encapsulating the information required to
+     *         process the upgrade request
+     *
+     * @throws IllegalStateException if this is called on a Processor that does
+     *         not support upgrading
+     */
     UpgradeToken getUpgradeToken();
 
+    /**
+     * @return {@code true} if the Processor is currently processing an upgrade
+     *         request, otherwise {@code false}
+     */
     boolean isUpgrade();
     boolean isAsync();
 
     /**
-     * Check this processor to see if the async timeout has expired and process
-     * a timeout if that is that case.
+     * Check this processor to see if the timeout has expired and process a
+     * timeout if that is that case.
+     * <p>
+     * Note: The name of this method originated with the Servlet 3.0
+     * asynchronous processing but evolved over time to represent a timeout that
+     * is triggered independently of the socket read/write timeouts.
      *
      * @param now The time (as returned by {@link System#currentTimeMillis()} to
-     *            use as the current time to determine whether the async timeout
-     *            has expired. If negative, the timeout will always be treated
-     *            as if it has expired.
+     *            use as the current time to determine whether the timeout has
+     *            expired. If negative, the timeout will always be treated as ifq
+     *            it has expired.
      */
     void timeoutAsync(long now);
 
@@ -81,8 +98,12 @@ public interface Processor {
     void setSslSupport(SSLSupport sslSupport);
 
     /**
-     * Allows retrieving additional input during the upgrade process
+     * Allows retrieving additional input during the upgrade process.
+     *
      * @return leftover bytes
+     *
+     * @throws IllegalStateException if this is called on a Processor that does
+     *         not support upgrading
      */
     ByteBuffer getLeftoverInput();
 
@@ -93,4 +114,15 @@ public interface Processor {
      * an existing multiplexed connection.
      */
     void pause();
+
+    /**
+     * Check to see if the async generation (each cycle of async increments the
+     * generation of the AsyncStateMachine) is the same as the generation when
+     * the most recent async timeout was triggered. This is intended to be used
+     * to avoid unnecessary processing.
+     *
+     * @return {@code true} If the async generation has not changed since the
+     *         async timeout was triggered
+     */
+    boolean checkAsyncTimeoutGeneration();
 }

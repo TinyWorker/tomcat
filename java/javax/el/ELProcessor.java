@@ -94,8 +94,7 @@ public class ELProcessor {
         Class<?> clazz = context.getImportHandler().resolveClass(className);
 
         if (clazz == null) {
-            clazz = Class.forName(className, true,
-                    Thread.currentThread().getContextClassLoader());
+            clazz = Class.forName(className, true, Util.getContextClassLoader());
         }
 
         if (!Modifier.isPublic(clazz.getModifiers())) {
@@ -110,9 +109,15 @@ public class ELProcessor {
             function = sig.getName();
         }
 
+        // Only returns public methods. Java 9+ access is checked below.
         Method methods[] = clazz.getMethods();
+        JreCompat jreCompat = JreCompat.getInstance();
+
         for (Method method : methods) {
             if (!Modifier.isStatic(method.getModifiers())) {
+                continue;
+            }
+            if (!jreCompat.canAcccess(null, method)) {
                 continue;
             }
             if (method.getName().equals(sig.getName())) {
@@ -185,8 +190,9 @@ public class ELProcessor {
 
         int modifiers = method.getModifiers();
 
-        // Check for public method as well as being static
-        if (!Modifier.isStatic(modifiers) || !Modifier.isPublic(modifiers)) {
+        // Check for static, public method and module access for Java 9+
+        JreCompat jreCompat = JreCompat.getInstance();
+        if (!Modifier.isStatic(modifiers) || !jreCompat.canAcccess(null, method)) {
             throw new NoSuchMethodException(Util.message(context,
                     "elProcessor.defineFunctionInvalidMethod", method.getName(),
                     method.getDeclaringClass().getName()));

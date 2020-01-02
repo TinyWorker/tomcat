@@ -17,12 +17,7 @@
 
 package org.apache.jasper.compiler;
 
-import java.util.HashMap;
-import java.util.List;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.catalina.startup.TomcatBaseTest;
@@ -112,11 +107,10 @@ public class TestParserNoStrictWhitespace extends TomcatBaseTest {
 
         ByteChunk res = new ByteChunk();
         int sc = getUrl("http://localhost:" + getPort() +
-                "/test/bug49nnn/bug49297NoSpace.jsp", res,
-                new HashMap<String,List<String>>());
+                "/test/bug49nnn/bug49297NoSpace.jsp", res, null);
 
 
-        assertEquals(200, sc);
+        Assert.assertEquals(200, sc);
         assertEcho(res.toString(), "Hello World");
     }
 
@@ -125,14 +119,13 @@ public class TestParserNoStrictWhitespace extends TomcatBaseTest {
         getTomcatInstanceTestWebapp(false, true);
 
         int sc = getUrl("http://localhost:" + getPort() +
-                "/test/bug49nnn/bug49297DuplicateAttr.jsp", new ByteChunk(),
-                new HashMap<String,List<String>>());
+                "/test/bug49nnn/bug49297DuplicateAttr.jsp", new ByteChunk(), null);
 
-        assertEquals(500, sc);
+        Assert.assertEquals(500, sc);
     }
 
     /** Assertion for text printed by tags:echo */
     private static void assertEcho(String result, String expected) {
-        assertTrue(result.indexOf("<p>" + expected + "</p>") > 0);
+        Assert.assertTrue(result.indexOf("<p>" + expected + "</p>") > 0);
     }
 }

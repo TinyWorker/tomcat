@@ -118,9 +118,13 @@ public final class Globals {
      * We do this because of the pathInfo mangling happening when using
      * the CGIServlet in conjunction with the SSI servlet. (value stored
      * as an object of type String)
+     *
+     * @deprecated Unused. This is no longer used as the CGIO servlet now has
+     *             generic handling for when it is used as an include.
+     *             This will be removed in Tomcat 10
      */
-     public static final String SSI_FLAG_ATTR =
-         "org.apache.catalina.ssi.SSIServlet";
+    @Deprecated
+    public static final String SSI_FLAG_ATTR = "org.apache.catalina.ssi.SSIServlet";
 
 
     /**
@@ -193,6 +197,15 @@ public final class Globals {
      */
     public static final String REMOTE_ADDR_ATTRIBUTE =
             org.apache.coyote.Constants.REMOTE_ADDR_ATTRIBUTE;
+
+
+    /**
+     * The request attribute that is set to the value of {@code Boolean.TRUE}
+     * by the RemoteIpFilter, RemoteIpValve (and other similar components) that identifies
+     * a request which been forwarded via one or more proxies.
+     */
+    public static final String REQUEST_FORWARDED_ATTRIBUTE =
+        "org.apache.tomcat.request.forwarded";
 
 
     public static final String ASYNC_SUPPORTED_ATTR =

@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!--
   Licensed to the Apache Software Foundation (ASF) under one or more
   contributor license agreements.  See the NOTICE file distributed with
@@ -83,7 +83,7 @@
   </mbean>
 
   <mbean         name="JAASRealm"
-          description="Implmentation of Realm that authenticates users via the Java Authentication and Authorization Service (JAAS)"
+          description="Implementation of Realm that authenticates users via the Java Authentication and Authorization Service (JAAS)"
                domain="Catalina"
                 group="Realm"
                  type="org.apache.catalina.realm.JAASRealm">
@@ -517,6 +517,15 @@
       <parameter name="theRealm"
                  description="New Realm to add"
                  type="org.apache.catalina.Realm"/>
+    </operation>
+
+    <operation   name="isLocked"
+          description="Determine if the specified user is locked"
+               impact="ACTION"
+           returnType="boolean">
+      <parameter name="username"
+                 description="User to test for being locked"
+                 type="java.lang.String"/>
     </operation>
 
     <operation   name="unlock"

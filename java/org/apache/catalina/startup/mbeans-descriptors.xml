@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!--
   Licensed to the Apache Software Foundation (ASF) under one or more
   contributor license agreements.  See the NOTICE file distributed with
@@ -39,7 +39,7 @@
   </mbean>
 
   <mbean name="EngineConfig"
-         description="Startup event listener for a Engine that configures the properties of that Engine, and the associated defined contexts"
+         description="Startup event listener for an Engine that configures the properties of that Engine, and the associated defined contexts"
          domain="Catalina"
          group="Listener"
          type="org.apache.catalina.startup.EngineConfig">

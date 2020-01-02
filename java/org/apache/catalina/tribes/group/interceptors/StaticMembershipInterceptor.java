@@ -18,6 +18,7 @@ package org.apache.catalina.tribes.group.interceptors;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.catalina.tribes.Channel;
 import org.apache.catalina.tribes.ChannelException;
@@ -32,7 +33,8 @@ import org.apache.catalina.tribes.util.StringManager;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 
-public class StaticMembershipInterceptor extends ChannelInterceptorBase {
+public class StaticMembershipInterceptor extends ChannelInterceptorBase
+        implements StaticMembershipInterceptorMBean {
 
     private static final Log log = LogFactory.getLog(StaticMembershipInterceptor.class);
     protected static final StringManager sm =
@@ -67,6 +69,7 @@ public class StaticMembershipInterceptor extends ChannelInterceptorBase {
 
     public void setLocalMember(Member member) {
         this.localMember = member;
+        localMember.setLocal(true);
     }
 
     @Override
@@ -154,8 +157,9 @@ public class StaticMembershipInterceptor extends ChannelInterceptorBase {
         if ( (Channel.SND_RX_SEQ&svc)==Channel.SND_RX_SEQ ) super.start(Channel.SND_RX_SEQ);
         if ( (Channel.SND_TX_SEQ&svc)==Channel.SND_TX_SEQ ) super.start(Channel.SND_TX_SEQ);
         final ChannelInterceptorBase base = this;
-        for (Member member : members) {
-            Thread t = new Thread() {
+        ScheduledExecutorService executor = getChannel().getUtilityExecutor();
+        for (final Member member : members) {
+            Runnable r = new Runnable() {
                 @Override
                 public void run() {
                     base.memberAdded(member);
@@ -164,7 +168,7 @@ public class StaticMembershipInterceptor extends ChannelInterceptorBase {
                     }
                 }
             };
-            t.start();
+            executor.execute(r);
         }
         super.start(svc & (~Channel.SND_RX_SEQ) & (~Channel.SND_TX_SEQ));
 

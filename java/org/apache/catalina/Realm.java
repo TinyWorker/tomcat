@@ -25,6 +25,8 @@ import org.apache.catalina.connector.Request;
 import org.apache.catalina.connector.Response;
 import org.apache.tomcat.util.descriptor.web.SecurityConstraint;
 import org.ietf.jgss.GSSContext;
+import org.ietf.jgss.GSSCredential;
+import org.ietf.jgss.GSSName;
 
 /**
  * A <b>Realm</b> is a read-only facade for an underlying security realm
@@ -35,29 +37,13 @@ import org.ietf.jgss.GSSContext;
  *
  * @author Craig R. McClanahan
  */
-public interface Realm {
-
-
-    // ------------------------------------------------------------- Properties
-
-    /**
-     * @return the Container with which this Realm has been associated.
-     */
-    public Container getContainer();
-
-
-    /**
-     * Set the Container with which this Realm has been associated.
-     *
-     * @param container The associated Container
-     */
-    public void setContainer(Container container);
-
+public interface Realm extends Contained {
 
     /**
      * @return the CredentialHandler configured for this Realm.
      */
     public CredentialHandler getCredentialHandler();
+
 
     /**
      * Set the CredentialHandler to be used by this Realm.
@@ -66,8 +52,6 @@ public interface Realm {
      */
     public void setCredentialHandler(CredentialHandler credentialHandler);
 
-
-    // --------------------------------------------------------- Public Methods
 
     /**
      * Add a property change listener to this component.
@@ -132,6 +116,22 @@ public interface Realm {
      * @return the associated principal, or <code>null</code> if there is none
      */
     public Principal authenticate(GSSContext gssContext, boolean storeCreds);
+
+
+    /**
+     * Try to authenticate using a {@link GSSName}
+     *
+     * Note that this default method will be turned into an abstract one in
+     * Tomcat 10.
+     *
+     * @param gssName The {@link GSSName} of the principal to look up
+     * @param gssCredential The {@link GSSCredential} of the principal, may be
+     *                      {@code null}
+     * @return the associated principal, or {@code null} if there is none
+     */
+    public default Principal authenticate(GSSName gssName, GSSCredential gssCredential) {
+        return null;
+    }
 
 
     /**
@@ -229,6 +229,17 @@ public interface Realm {
      * Return roles associated with given principal
      * @param principal the {@link Principal} to get the roles for.
      * @return principal roles
+     * @deprecated This will be removed in Tomcat 10.
      */
+    @Deprecated
     public String[] getRoles(Principal principal);
+
+
+    /**
+     * Return the availability of the realm for authentication.
+     * @return <code>true</code> if the realm is able to perform authentication
+     */
+    public default boolean isAvailable() {
+        return true;
+    }
 }

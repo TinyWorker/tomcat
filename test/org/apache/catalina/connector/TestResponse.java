@@ -19,7 +19,6 @@ package org.apache.catalina.connector;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,17 +28,16 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.catalina.Context;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.catalina.startup.TomcatBaseTest;
+import org.apache.tomcat.unittest.TesterContext;
 import org.apache.tomcat.unittest.TesterRequest;
 import org.apache.tomcat.util.buf.ByteChunk;
+import org.apache.tomcat.util.collections.CaseInsensitiveKeyMap;
 
 /**
  * Test case for {@link Request}.
@@ -55,11 +53,11 @@ public class TestResponse extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
 
         Tomcat.addServlet(ctx, "servlet", new Bug49598Servlet());
-        ctx.addServletMapping("/", "servlet");
+        ctx.addServletMappingDecoded("/", "servlet");
 
         tomcat.start();
 
-        Map<String,List<String>> headers = new HashMap<>();
+        Map<String,List<String>> headers = new CaseInsensitiveKeyMap<>();
         getUrl("http://localhost:" + getPort() + "/", new ByteChunk(), headers);
 
         // Check for headers without a name
@@ -71,7 +69,7 @@ public class TestResponse extends TomcatBaseTest {
                         values.get(0).startsWith("HTTP/1.1")) {
                     continue;
                 }
-                fail("Null header name detected for value " + values);
+                Assert.fail("Null header name detected for value " + values);
             }
         }
 
@@ -82,7 +80,7 @@ public class TestResponse extends TomcatBaseTest {
                 count ++;
             }
         }
-        assertEquals(1, count);
+        Assert.assertEquals(1, count);
     }
 
     private static final class Bug49598Servlet extends HttpServlet {
@@ -111,13 +109,13 @@ public class TestResponse extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
 
         Tomcat.addServlet(ctx, "servlet", new CharsetServlet());
-        ctx.addServletMapping("/", "servlet");
+        ctx.addServletMappingDecoded("/", "servlet");
 
         tomcat.start();
 
         ByteChunk bc = getUrl("http://localhost:" + getPort() + "/");
 
-        assertEquals("OK", bc.toString());
+        Assert.assertEquals("OK", bc.toString());
     }
 
     private static final class CharsetServlet extends HttpServlet {
@@ -150,13 +148,13 @@ public class TestResponse extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
 
         Tomcat.addServlet(ctx, "servlet", new Bug52811Servlet());
-        ctx.addServletMapping("/", "servlet");
+        ctx.addServletMappingDecoded("/", "servlet");
 
         tomcat.start();
 
         ByteChunk bc = getUrl("http://localhost:" + getPort() + "/");
 
-        assertEquals("OK", bc.toString());
+        Assert.assertEquals("OK", bc.toString());
     }
 
 
@@ -573,7 +571,48 @@ public class TestResponse extends TomcatBaseTest {
     @Test
     public void testEncodeRedirectURL16() throws Exception {
         doTestEncodeURL("./..#/../..", "./..;jsessionid=1234#/../..");
-    }    @Test
+    }
+
+
+    @Test
+    public void testSendRedirect01() throws Exception {
+        doTestSendRedirect("../foo", "../foo");
+    }
+
+
+    @Test
+    public void testSendRedirect02() throws Exception {
+        doTestSendRedirect("../foo bar", "../foo bar");
+    }
+
+
+    @Test
+    public void testSendRedirect03() throws Exception {
+        doTestSendRedirect("../foo%20bar", "../foo%20bar");
+    }
+
+
+    private void doTestSendRedirect(String input, String expectedLocation) throws Exception {
+        // Set-up.
+        // Note: Not sufficient for testing relative -> absolute
+        Connector connector = new Connector();
+        org.apache.coyote.Response cResponse = new org.apache.coyote.Response();
+        Response response = new Response();
+        response.setCoyoteResponse(cResponse);
+        Request request = new Request(connector);
+        org.apache.coyote.Request cRequest = new org.apache.coyote.Request();
+        request.setCoyoteRequest(cRequest);
+        Context context = new TesterContext();
+        request.getMappingData().context = context;
+        response.setRequest(request);
+        // Do test
+        response.sendRedirect(input);
+        String location = response.getHeader("Location");
+        Assert.assertEquals(expectedLocation,  location);
+    }
+
+
+    @Test
     public void testBug53469a() throws Exception {
         Request req = new TesterRequest();
         Response resp = new Response();

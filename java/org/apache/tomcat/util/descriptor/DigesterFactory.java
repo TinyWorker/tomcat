@@ -36,7 +36,6 @@ import org.xml.sax.ext.EntityResolver2;
  */
 public class DigesterFactory {
 
-    private static final Log log = LogFactory.getLog(DigesterFactory.class);
     private static final StringManager sm =
             StringManager.getManager(Constants.PACKAGE_NAME);
 
@@ -141,6 +140,13 @@ public class DigesterFactory {
     private static void add(Map<String,String> ids, String id, String location) {
         if (location != null) {
             ids.put(id, location);
+            // BZ 63311
+            // Support http and https locations as the move away from http and
+            // towards https continues.
+            if (id.startsWith("http://")) {
+                String httpsId = "https://" + id.substring(7);
+                ids.put(httpsId, location);
+            }
         }
     }
 
@@ -150,6 +156,7 @@ public class DigesterFactory {
             location = CLASS_JSP_CONTEXT.getResource("resources/" + name);
         }
         if (location == null) {
+            Log log = LogFactory.getLog(DigesterFactory.class);
             log.warn(sm.getString("digesterFactory.missingSchema", name));
             return null;
         }
@@ -163,6 +170,7 @@ public class DigesterFactory {
      * @param xmlNamespaceAware turn on/off namespace validation
      * @param rule an instance of <code>RuleSet</code> used for parsing the xml.
      * @param blockExternal turn on/off the blocking of external resources
+     * @return a new digester
      */
     public static Digester newDigester(boolean xmlValidation,
                                        boolean xmlNamespaceAware,

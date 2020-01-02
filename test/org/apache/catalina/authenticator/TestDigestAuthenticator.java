@@ -23,9 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -37,6 +34,8 @@ import org.apache.catalina.startup.TesterServlet;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.catalina.startup.TomcatBaseTest;
 import org.apache.tomcat.unittest.TesterContext;
+import org.apache.tomcat.unittest.TesterRequest;
+import org.apache.tomcat.unittest.TesterServletContext;
 import org.apache.tomcat.util.buf.ByteChunk;
 import org.apache.tomcat.util.descriptor.web.LoginConfig;
 import org.apache.tomcat.util.descriptor.web.SecurityCollection;
@@ -63,7 +62,9 @@ public class TestDigestAuthenticator extends TomcatBaseTest {
     @Test
     public void bug54521() throws LifecycleException {
         DigestAuthenticator digestAuthenticator = new DigestAuthenticator();
-        digestAuthenticator.setContainer(new TesterContext());
+        TesterContext context = new TesterContext();
+        context.setServletContext(new TesterServletContext());
+        digestAuthenticator.setContainer(context);
         digestAuthenticator.start();
         Request request = new TesterRequest();
         final int count = 1000;
@@ -212,8 +213,8 @@ public class TestDigestAuthenticator extends TomcatBaseTest {
         ByteChunk bc = new ByteChunk();
         int rc = getUrl("http://localhost:" + getPort() + uri, bc, reqHeaders,
                 respHeaders);
-        assertEquals(401, rc);
-        assertTrue(bc.getLength() > 0);
+        Assert.assertEquals(401, rc);
+        Assert.assertTrue(bc.getLength() > 0);
         bc.recycle();
 
         // Second request should succeed (if we use the server nonce)
@@ -235,11 +236,11 @@ public class TestDigestAuthenticator extends TomcatBaseTest {
                 null);
 
         if (req2expect200) {
-            assertEquals(200, rc);
-            assertEquals("OK", bc.toString());
+            Assert.assertEquals(200, rc);
+            Assert.assertEquals("OK", bc.toString());
         } else {
-            assertEquals(401, rc);
-            assertTrue(bc.getLength() > 0);
+            Assert.assertEquals(401, rc);
+            Assert.assertTrue(bc.getLength() > 0);
         }
 
         // Third request should succeed if we increment nc
@@ -252,11 +253,11 @@ public class TestDigestAuthenticator extends TomcatBaseTest {
                 null);
 
         if (req3expect200) {
-            assertEquals(200, rc);
-            assertEquals("OK", bc.toString());
+            Assert.assertEquals(200, rc);
+            Assert.assertEquals("OK", bc.toString());
         } else {
-            assertEquals(401, rc);
-            assertTrue(bc.getLength() > 0);
+            Assert.assertEquals(401, rc);
+            Assert.assertTrue(bc.getLength() > 0);
         }
     }
 
@@ -272,9 +273,9 @@ public class TestDigestAuthenticator extends TomcatBaseTest {
 
         // Add protected servlet
         Tomcat.addServlet(ctxt, "TesterServlet", new TesterServlet());
-        ctxt.addServletMapping(URI, "TesterServlet");
+        ctxt.addServletMappingDecoded(URI, "TesterServlet");
         SecurityCollection collection = new SecurityCollection();
-        collection.addPattern(URI);
+        collection.addPatternDecoded(URI);
         SecurityConstraint sc = new SecurityConstraint();
         sc.addAuthRole(ROLE);
         sc.addCollection(collection);
@@ -382,16 +383,6 @@ public class TestDigestAuthenticator extends TomcatBaseTest {
     }
 
     private static String digest(String input) {
-        return MD5Encoder.encode(
-                ConcurrentMessageDigest.digestMD5(input.getBytes()));
-    }
-
-
-    private static class TesterRequest extends Request {
-
-        @Override
-        public String getRemoteAddr() {
-            return "127.0.0.1";
-        }
+        return MD5Encoder.encode(ConcurrentMessageDigest.digestMD5(input.getBytes()));
     }
 }

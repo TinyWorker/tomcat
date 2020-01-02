@@ -46,12 +46,16 @@ public class Http11NioProtocol extends AbstractHttp11JsseProtocol<NioChannel> {
 
     // -------------------- Pool setup --------------------
 
+    /**
+     * NO-OP.
+     *
+     * @param count Unused
+     */
     public void setPollerThreadCount(int count) {
-        ((NioEndpoint)getEndpoint()).setPollerThreadCount(count);
     }
 
     public int getPollerThreadCount() {
-        return ((NioEndpoint)getEndpoint()).getPollerThreadCount();
+        return 1;
     }
 
     public void setSelectorTimeout(long timeout) {
@@ -76,9 +80,9 @@ public class Http11NioProtocol extends AbstractHttp11JsseProtocol<NioChannel> {
     @Override
     protected String getNamePrefix() {
         if (isSSLEnabled()) {
-            return ("https-nio");
+            return "https-" + getSslImplementationShortName()+ "-nio";
         } else {
-            return ("http-nio");
+            return "http-nio";
         }
     }
 }

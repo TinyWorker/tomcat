@@ -50,7 +50,6 @@ import org.junit.Test;
 import org.apache.catalina.Context;
 import org.apache.catalina.servlets.DefaultServlet;
 import org.apache.catalina.startup.Tomcat;
-import org.apache.catalina.startup.TomcatBaseTest;
 import org.apache.tomcat.util.net.TesterSupport;
 import org.apache.tomcat.websocket.TesterMessageCountClient.BasicBinary;
 import org.apache.tomcat.websocket.TesterMessageCountClient.BasicHandler;
@@ -60,7 +59,7 @@ import org.apache.tomcat.websocket.TesterMessageCountClient.TesterProgrammaticEn
 import org.apache.tomcat.websocket.server.Constants;
 import org.apache.tomcat.websocket.server.WsContextListener;
 
-public class TestWsWebSocketContainer extends TomcatBaseTest {
+public class TestWsWebSocketContainer extends WebSocketBaseTest {
 
     private static final String MESSAGE_EMPTY = "";
     private static final String MESSAGE_STRING_1 = "qwerty";
@@ -89,7 +88,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
         ctx.addApplicationListener(TesterEchoServer.Config.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
-        ctx.addServletMapping("/", "default");
+        ctx.addServletMappingDecoded("/", "default");
 
         tomcat.start();
 
@@ -211,7 +210,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
         ctx.addApplicationListener(TesterEchoServer.Config.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
-        ctx.addServletMapping("/", "default");
+        ctx.addServletMappingDecoded("/", "default");
 
         WebSocketContainer wsContainer =
                 ContainerProvider.getWebSocketContainer();
@@ -319,7 +318,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
         ctx.addApplicationListener(BlockingConfig.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
-        ctx.addServletMapping("/", "default");
+        ctx.addServletMappingDecoded("/", "default");
 
         WebSocketContainer wsContainer =
                 ContainerProvider.getWebSocketContainer();
@@ -361,6 +360,10 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         // Clear the server side block and prevent further blocks to allow the
         // server to shutdown cleanly
         BlockingPojo.clearBlock();
+
+        // Close the client session, primarily to allow the
+        // BackgroundProcessManager to shut down.
+        wsSession.close();
 
         String msg = "Time out was [" + timeout + "] ms";
 
@@ -404,7 +407,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
         ctx.addApplicationListener(ConstantTxConfig.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
-        ctx.addServletMapping("/", "default");
+        ctx.addServletMappingDecoded("/", "default");
 
         WebSocketContainer wsContainer =
                 ContainerProvider.getWebSocketContainer();
@@ -427,6 +430,10 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
             }
             loops++;
         }
+
+        // Close the client session, primarily to allow the
+        // BackgroundProcessManager to shut down.
+        wsSession.close();
 
         // Check the right exception was thrown
         Assert.assertNotNull(ConstantTxEndpoint.getException());
@@ -469,7 +476,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
     public static class BlockingPojo {
 
         private static Object monitor = new Object();
-        // Enable blockign by default
+        // Enable blocking by default
         private static boolean block = true;
 
         /**
@@ -615,7 +622,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
         ctx.addApplicationListener(TesterEchoServer.Config.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
-        ctx.addServletMapping("/", "default");
+        ctx.addServletMappingDecoded("/", "default");
 
         tomcat.start();
 
@@ -654,6 +661,13 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         Assert.assertEquals(2, setB.size());
         Assert.assertTrue(setB.remove(s1b));
         Assert.assertTrue(setB.remove(s2b));
+
+        // Close sessions explicitly as Gump reports a session remains open at
+        // the end of this test
+        s2a.close();
+        s3a.close();
+        s1b.close();
+        s2b.close();
     }
 
 
@@ -665,7 +679,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
         ctx.addApplicationListener(TesterEchoServer.Config.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
-        ctx.addServletMapping("/", "default");
+        ctx.addServletMappingDecoded("/", "default");
 
         tomcat.start();
 
@@ -723,7 +737,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
         ctx.addApplicationListener(TesterEchoServer.Config.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
-        ctx.addServletMapping("/", "default");
+        ctx.addServletMappingDecoded("/", "default");
 
         tomcat.start();
 
@@ -809,7 +823,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
         ctx.addApplicationListener(TesterEchoServer.Config.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
-        ctx.addServletMapping("/", "default");
+        ctx.addServletMappingDecoded("/", "default");
 
         TesterSupport.initSsl(tomcat);
 
@@ -821,7 +835,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
                 ClientEndpointConfig.Builder.create().build();
         clientEndpointConfig.getUserProperties().put(
                 org.apache.tomcat.websocket.Constants.SSL_TRUSTSTORE_PROPERTY,
-                "test/org/apache/tomcat/util/net/ca.jks");
+                TesterSupport.CA_JKS);
         Session wsSession = wsContainer.connectToServer(
                 TesterProgrammaticEndpoint.class,
                 clientEndpointConfig,
@@ -892,7 +906,7 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
         Context ctx = tomcat.addContext("", null);
         ctx.addApplicationListener(TesterEchoServer.Config.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
-        ctx.addServletMapping("/", "default");
+        ctx.addServletMappingDecoded("/", "default");
 
         tomcat.start();
 
@@ -947,36 +961,36 @@ public class TestWsWebSocketContainer extends TomcatBaseTest {
     }
 
     @Test
-    public void testPerMessageDefalteClient01() throws Exception {
-        doTestPerMessageDefalteClient(MESSAGE_STRING_1, 1);
+    public void testPerMessageDeflateClient01() throws Exception {
+        doTestPerMessageDeflateClient(MESSAGE_STRING_1, 1);
     }
 
 
     @Test
-    public void testPerMessageDefalteClient02() throws Exception {
-        doTestPerMessageDefalteClient(MESSAGE_EMPTY, 1);
+    public void testPerMessageDeflateClient02() throws Exception {
+        doTestPerMessageDeflateClient(MESSAGE_EMPTY, 1);
     }
 
 
     @Test
-    public void testPerMessageDefalteClient03() throws Exception {
-        doTestPerMessageDefalteClient(MESSAGE_STRING_1, 2);
+    public void testPerMessageDeflateClient03() throws Exception {
+        doTestPerMessageDeflateClient(MESSAGE_STRING_1, 2);
     }
 
 
     @Test
-    public void testPerMessageDefalteClient04() throws Exception {
-        doTestPerMessageDefalteClient(MESSAGE_EMPTY, 2);
+    public void testPerMessageDeflateClient04() throws Exception {
+        doTestPerMessageDeflateClient(MESSAGE_EMPTY, 2);
     }
 
 
-    private void doTestPerMessageDefalteClient(String msg, int count) throws Exception {
+    private void doTestPerMessageDeflateClient(String msg, int count) throws Exception {
         Tomcat tomcat = getTomcatInstance();
         // No file system docBase required
         Context ctx = tomcat.addContext("", null);
         ctx.addApplicationListener(TesterEchoServer.Config.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
-        ctx.addServletMapping("/", "default");
+        ctx.addServletMappingDecoded("/", "default");
 
         tomcat.start();
 

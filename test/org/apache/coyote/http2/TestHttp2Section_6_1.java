@@ -39,6 +39,7 @@ public class TestHttp2Section_6_1 extends Http2TestBase {
                 "3-WindowSize-[128]\n" +
                 "3-HeadersStart\n" +
                 "3-Header-[:status]-[200]\n" +
+                "3-Header-[content-length]-[128]\n" +
                 "3-Header-[date]-[Wed, 11 Nov 2015 19:18:42 GMT]\n" +
                 "3-HeadersEnd\n" +
                 "3-Body-128\n" +
@@ -68,6 +69,7 @@ public class TestHttp2Section_6_1 extends Http2TestBase {
                 "3-WindowSize-[119]\n" +
                 "3-HeadersStart\n" +
                 "3-Header-[:status]-[200]\n" +
+                "3-Header-[content-length]-[119]\n" +
                 "3-Header-[date]-[Wed, 11 Nov 2015 19:18:42 GMT]\n" +
                 "3-HeadersEnd\n" +
                 "3-Body-119\n" +
@@ -83,12 +85,9 @@ public class TestHttp2Section_6_1 extends Http2TestBase {
         padding[4] = 0x01;
 
         sendSimplePostRequest(3, padding);
-        parser.readFrame(true);
+
         // May see Window updates depending on timing
-        while (output.getTrace().contains("WindowSize")) {
-            output.clearTrace();
-            parser.readFrame(true);
-        }
+        skipWindowSizeFrames();
 
         String trace = output.getTrace();
         Assert.assertTrue(trace, trace.startsWith("0-Goaway-[3]-[1]-["));
@@ -112,10 +111,7 @@ public class TestHttp2Section_6_1 extends Http2TestBase {
         os.write(dataFrame);
         os.flush();
 
-        parser.readFrame(true);
-
-        String trace = output.getTrace();
-        Assert.assertTrue(trace, trace.startsWith("0-Goaway-[1]-[1]-["));
+        handleGoAwayResponse(1);
     }
 
 
@@ -139,10 +135,7 @@ public class TestHttp2Section_6_1 extends Http2TestBase {
         os.write(dataFrame);
         os.flush();
 
-        parser.readFrame(true);
-
-        String trace = output.getTrace();
-        Assert.assertTrue(trace, trace.startsWith("0-Goaway-[1]-[1]-["));
+        handleGoAwayResponse(1);
     }
 
 
@@ -160,6 +153,7 @@ public class TestHttp2Section_6_1 extends Http2TestBase {
                 "3-WindowSize-[127]\n" +
                 "3-HeadersStart\n" +
                 "3-Header-[:status]-[200]\n" +
+                "3-Header-[content-length]-[127]\n" +
                 "3-Header-[date]-[Wed, 11 Nov 2015 19:18:42 GMT]\n" +
                 "3-HeadersEnd\n" +
                 "3-Body-127\n" +

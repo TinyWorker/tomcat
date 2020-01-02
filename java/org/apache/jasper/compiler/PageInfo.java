@@ -49,7 +49,7 @@ class PageInfo {
     private final HashMap<String, LinkedList<String>> xmlPrefixMapper;
     private final HashMap<String, Mark> nonCustomTagPrefixMap;
     private final String jspFile;
-    private final String defaultLanguage = "java";
+    private static final String defaultLanguage = "java";
     private String language;
     private final String defaultExtends = Constants.JSP_SERVLET_BASE;
     private String xtends;
@@ -97,7 +97,7 @@ class PageInfo {
     private final Vector<String> pluginDcls;  // Id's for tagplugin declarations
 
     // JSP 2.2
-    private boolean errorOnUndeclaredNamepsace = false;
+    private boolean errorOnUndeclaredNamespace = false;
 
     private final boolean isTagFile;
 
@@ -126,8 +126,11 @@ class PageInfo {
     }
 
     /**
-     * Check if the plugin ID has been previously declared.  Make a not
+     * Check if the plugin ID has been previously declared.  Make a note
      * that this Id is now declared.
+     *
+     * @param id The plugin ID to check
+     *
      * @return true if Id has been declared.
      */
     public boolean isPluginDeclared(String id) {
@@ -718,11 +721,11 @@ class PageInfo {
     }
 
     public boolean isErrorOnUndeclaredNamespace() {
-        return errorOnUndeclaredNamepsace;
+        return errorOnUndeclaredNamespace;
     }
 
     public void setErrorOnUndeclaredNamespace(
             boolean errorOnUndeclaredNamespace) {
-        this.errorOnUndeclaredNamepsace = errorOnUndeclaredNamespace;
+        this.errorOnUndeclaredNamespace = errorOnUndeclaredNamespace;
     }
 }

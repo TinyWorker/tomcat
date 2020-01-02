@@ -72,7 +72,7 @@ public class ContextBindings {
     /**
      * The string manager for this package.
      */
-    protected static final StringManager sm = StringManager.getManager(Constants.Package);
+    protected static final StringManager sm = StringManager.getManager(ContextBindings.class);
 
 
     // --------------------------------------------------------- Public Methods
@@ -200,7 +200,7 @@ public class ContextBindings {
      *         context, otherwise <code>false</code>
      */
     public static boolean isThreadBound() {
-        return (threadBindings.containsKey(Thread.currentThread()));
+        return threadBindings.containsKey(Thread.currentThread());
     }
 
 

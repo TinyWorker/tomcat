@@ -165,7 +165,7 @@ public final class JDBCAccessLogValve extends ValveBase implements AccessLog {
     * Use long contentLength as you have more 4 GB output.
     * @since 6.0.15
     */
-    boolean useLongContentLength = false ;
+    boolean useLongContentLength = false;
 
    /**
      * The connection username to use when trying to connect to the database.
@@ -208,6 +208,9 @@ public final class JDBCAccessLogValve extends ValveBase implements AccessLog {
     private long currentTimeMillis;
 
     /**
+     * Should this valve set request attributes for IP address, hostname,
+     * protocol and port used for the request.
+     * Default is <code>true</code>.
      * @see #setRequestAttributesEnabled(boolean)
      */
     boolean requestAttributesEnabled = true;
@@ -217,6 +220,7 @@ public final class JDBCAccessLogValve extends ValveBase implements AccessLog {
 
     /**
      * {@inheritDoc}
+     * Default is <code>true</code>.
      */
     @Override
     public void setRequestAttributesEnabled(boolean requestAttributesEnabled) {
@@ -232,8 +236,7 @@ public final class JDBCAccessLogValve extends ValveBase implements AccessLog {
     }
 
     /**
-     * Return the username to use to connect to the database.
-     *
+     * @return the username to use to connect to the database.
      */
     public String getConnectionName() {
         return connectionName;
@@ -257,9 +260,8 @@ public final class JDBCAccessLogValve extends ValveBase implements AccessLog {
         this.driverName = driverName;
     }
 
-   /**
-     * Return the password to use to connect to the database.
-     *
+    /**
+     * @return the password to use to connect to the database.
      */
     public String getConnectionPassword() {
         return connectionPassword;
@@ -356,11 +358,11 @@ public final class JDBCAccessLogValve extends ValveBase implements AccessLog {
     }
 
 
-  /**
-   * Sets the name of the field containing the HTTP response status code.
-   *
-   * @param statusField The name of the HTTP response status code field.
-   */
+    /**
+     * Sets the name of the field containing the HTTP response status code.
+     *
+     * @param statusField The name of the HTTP response status code field.
+     */
     public void setStatusField(String statusField) {
         this.statusField = statusField;
     }
@@ -420,10 +422,11 @@ public final class JDBCAccessLogValve extends ValveBase implements AccessLog {
     }
 
     /**
-     * get useLongContentLength
+     * @return <code>true</code> if content length should be considered a long
+     *  rather than an int, defaults to <code>false</code>
      */
-    public  boolean getUseLongContentLength() {
-        return this.useLongContentLength ;
+    public boolean getUseLongContentLength() {
+        return this.useLongContentLength;
     }
 
     /**
@@ -565,7 +568,7 @@ public final class JDBCAccessLogValve extends ValveBase implements AccessLog {
         if (driver == null) {
             try {
                 Class<?> clazz = Class.forName(driverName);
-                driver = (Driver) clazz.newInstance();
+                driver = (Driver) clazz.getConstructor().newInstance();
             } catch (Throwable e) {
                 ExceptionUtils.handleThrowable(e);
                 throw new SQLException(e.getMessage(), e);

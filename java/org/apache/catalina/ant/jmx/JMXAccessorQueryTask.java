@@ -50,7 +50,7 @@ import org.apache.tools.ant.BuildException;
  * </pre>
  * with attribute <em>attributebinding="true"</em> you can get
  * all attributes also from result objects.<br>
- * The property manager.lenght show the size of the result
+ * The property manager.length show the size of the result
  * and with manager.[0..length].name the
  * resulted ObjectNames are saved.
  * These tasks require Ant 1.6 or later interface.
@@ -128,14 +128,14 @@ public class JMXAccessorQueryTask extends JMXAccessorTask {
                 oindex++;
                 setProperty(pname + "Name", oname.toString());
                 if (isAttributebinding()) {
-                    bindAttributes(jmxServerConnection, resultproperty, pname, oname);
+                    bindAttributes(jmxServerConnection, pname, oname);
                 }
             }
         }
         return isError;
     }
 
-    protected void bindAttributes(MBeanServerConnection jmxServerConnection, String resultproperty, String pname, ObjectName oname) {
+    protected void bindAttributes(MBeanServerConnection jmxServerConnection, String pname, ObjectName oname) {
         try {
             MBeanInfo minfo = jmxServerConnection.getMBeanInfo(oname);
             MBeanAttributeInfo attrs[] = minfo.getAttributes();

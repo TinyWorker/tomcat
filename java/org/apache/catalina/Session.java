@@ -326,7 +326,7 @@ public interface Session {
     /**
      * Remove a session event listener from this component.
      *
-     * @param listener remove the sesion listener, which will no longer be
+     * @param listener remove the session listener, which will no longer be
      *     notified
      */
     public void removeSessionListener(SessionListener listener);
@@ -356,4 +356,23 @@ public interface Session {
             boolean notifySessionListeners, boolean notifyContainerListeners);
 
 
+    /**
+     * Does the session implementation support the distributing of the given
+     * attribute? If the Manager is marked as distributable, then this method
+     * must be used to check attributes before adding them to a session and
+     * an {@link IllegalArgumentException} thrown if the proposed attribute is
+     * not distributable.
+     * <p>
+     * Note that the {@link Manager} implementation may further restrict which
+     * attributes are distributed but a {@link Manager} level restriction should
+     * not trigger an {@link IllegalArgumentException} in
+     * {@link HttpSession#setAttribute(String, Object)}
+     *
+     * @param name  The attribute name
+     * @param value The attribute value
+     *
+     * @return {@code true} if distribution is supported, otherwise {@code
+     *         false}
+     */
+    public boolean isAttributeDistributable(String name, Object value);
 }

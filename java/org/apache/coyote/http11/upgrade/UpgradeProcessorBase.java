@@ -33,10 +33,8 @@ public abstract class UpgradeProcessorBase extends AbstractProcessorLight implem
 
     private final UpgradeToken upgradeToken;
 
-    public UpgradeProcessorBase(SocketWrapperBase<?> wrapper, ByteBuffer leftOverInput,
-            UpgradeToken upgradeToken) {
+    public UpgradeProcessorBase(UpgradeToken upgradeToken) {
         this.upgradeToken = upgradeToken;
-        wrapper.unRead(leftOverInput);
     }
 
 
@@ -91,6 +89,14 @@ public abstract class UpgradeProcessorBase extends AbstractProcessorLight implem
         return null;
     }
 
+
+    @Override
+    public boolean checkAsyncTimeoutGeneration() {
+        return false;
+    }
+
+
+    // ----------------- Processor methods that are NO-OP by default for upgrade
 
     @Override
     public void timeoutAsync(long now) {

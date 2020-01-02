@@ -29,9 +29,11 @@ import org.apache.catalina.Container;
 import org.apache.catalina.Lifecycle;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.Realm;
+import org.apache.catalina.Wrapper;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.ietf.jgss.GSSContext;
+import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSName;
 
@@ -51,13 +53,9 @@ public class CombinedRealm extends RealmBase {
     protected final List<Realm> realms = new LinkedList<>();
 
     /**
-     * Descriptive information about this Realm implementation.
-     */
-    protected static final String name = "CombinedRealm";
-
-    /**
      * Add a realm to the list of realms that will be used to authenticate
      * users.
+     * @param theRealm realm which should be wrapped by the combined realm
      */
     public void addRealm(Realm theRealm) {
         realms.add(theRealm);
@@ -71,7 +69,7 @@ public class CombinedRealm extends RealmBase {
 
 
     /**
-     * Return the set of Realms that this Realm is wrapping
+     * @return the set of Realms that this Realm is wrapping
      */
     public ObjectName[] getRealms() {
         ObjectName[] result = new ObjectName[realms.size()];
@@ -85,7 +83,7 @@ public class CombinedRealm extends RealmBase {
     }
 
     /**
-     * Return the list of Realms contained by this Realm.
+     * @return the list of Realms contained by this Realm.
      */
     public Realm[] getNestedRealms() {
         return realms.toArray(new Realm[0]);
@@ -347,38 +345,34 @@ public class CombinedRealm extends RealmBase {
      * {@inheritDoc}
      */
     @Override
-    public Principal authenticate(GSSContext gssContext, boolean storeCreds) {
+    public Principal authenticate(GSSContext gssContext, boolean storeCred) {
         if (gssContext.isEstablished()) {
             Principal authenticatedUser = null;
-            String username = null;
-
-            GSSName name = null;
+            GSSName gssName = null;
             try {
-                name = gssContext.getSrcName();
+                gssName = gssContext.getSrcName();
             } catch (GSSException e) {
                 log.warn(sm.getString("realmBase.gssNameFail"), e);
                 return null;
             }
 
-            username = name.toString();
-
             for (Realm realm : realms) {
                 if (log.isDebugEnabled()) {
                     log.debug(sm.getString("combinedRealm.authStart",
-                            username, realm.getClass().getName()));
+                            gssName, realm.getClass().getName()));
                 }
 
-                authenticatedUser = realm.authenticate(gssContext, storeCreds);
+                authenticatedUser = realm.authenticate(gssContext, storeCred);
 
                 if (authenticatedUser == null) {
                     if (log.isDebugEnabled()) {
                         log.debug(sm.getString("combinedRealm.authFail",
-                                username, realm.getClass().getName()));
+                                gssName, realm.getClass().getName()));
                     }
                 } else {
                     if (log.isDebugEnabled()) {
                         log.debug(sm.getString("combinedRealm.authSuccess",
-                                username, realm.getClass().getName()));
+                                gssName, realm.getClass().getName()));
                     }
                     break;
                 }
@@ -390,9 +384,48 @@ public class CombinedRealm extends RealmBase {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    protected String getName() {
-        return name;
+    public Principal authenticate(GSSName gssName, GSSCredential gssCredential) {
+        Principal authenticatedUser = null;
+
+        for (Realm realm : realms) {
+            if (log.isDebugEnabled()) {
+                log.debug(sm.getString("combinedRealm.authStart",
+                        gssName, realm.getClass().getName()));
+            }
+
+            authenticatedUser = realm.authenticate(gssName, gssCredential);
+
+            if (authenticatedUser == null) {
+                if (log.isDebugEnabled()) {
+                    log.debug(sm.getString("combinedRealm.authFail",
+                            gssName, realm.getClass().getName()));
+                }
+            } else {
+                if (log.isDebugEnabled()) {
+                    log.debug(sm.getString("combinedRealm.authSuccess",
+                            gssName, realm.getClass().getName()));
+                }
+                break;
+            }
+        }
+        return authenticatedUser;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean hasRole(Wrapper wrapper, Principal principal, String role) {
+        for (Realm realm : realms) {
+            if (realm.hasRole(wrapper, principal, role)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -415,6 +448,17 @@ public class CombinedRealm extends RealmBase {
                     sm.getString("combinedRealm.getPrincipal"));
         log.error(sm.getString("combinedRealm.unexpectedMethod"), uoe);
         throw uoe;
+    }
+
+
+    @Override
+    public boolean isAvailable() {
+        for (Realm realm : realms) {
+            if (!realm.isAvailable()) {
+                return false;
+            }
+        }
+        return true;
     }
 
 }

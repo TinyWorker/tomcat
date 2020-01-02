@@ -50,22 +50,8 @@ public final class ApplicationFilterFactory {
      * @return The configured FilterChain instance or null if none is to be
      *         executed.
      */
-    public static ApplicationFilterChain createFilterChain
-        (ServletRequest request, Wrapper wrapper, Servlet servlet) {
-
-        // get the dispatcher type
-        DispatcherType dispatcher = null;
-        if (request.getAttribute(Globals.DISPATCHER_TYPE_ATTR) != null) {
-            dispatcher = (DispatcherType) request.getAttribute(
-                    Globals.DISPATCHER_TYPE_ATTR);
-        }
-        String requestPath = null;
-        Object attribute = request.getAttribute(
-                Globals.DISPATCHER_REQUEST_PATH_ATTR);
-
-        if (attribute != null){
-            requestPath = attribute.toString();
-        }
+    public static ApplicationFilterChain createFilterChain(ServletRequest request,
+            Wrapper wrapper, Servlet servlet) {
 
         // If there is no servlet to execute, return null
         if (servlet == null)
@@ -99,9 +85,18 @@ public final class ApplicationFilterFactory {
 
         // If there are no filter mappings, we are done
         if ((filterMaps == null) || (filterMaps.length == 0))
-            return (filterChain);
+            return filterChain;
 
         // Acquire the information we will need to match filter mappings
+        DispatcherType dispatcher =
+                (DispatcherType) request.getAttribute(Globals.DISPATCHER_TYPE_ATTR);
+
+        String requestPath = null;
+        Object attribute = request.getAttribute(Globals.DISPATCHER_REQUEST_PATH_ATTR);
+        if (attribute != null){
+            requestPath = attribute.toString();
+        }
+
         String servletName = wrapper.getName();
 
         // Add the relevant path-mapped filters to this filter chain
@@ -217,8 +212,8 @@ public final class ApplicationFilterFactory {
                 && (period != requestPath.length() - 1)
                 && ((requestPath.length() - period)
                     == (testPath.length() - 1))) {
-                return (testPath.regionMatches(2, requestPath, period + 1,
-                                               testPath.length() - 2));
+                return testPath.regionMatches(2, requestPath, period + 1,
+                                               testPath.length() - 2);
             }
         }
 
@@ -265,27 +260,27 @@ public final class ApplicationFilterFactory {
     private static boolean matchDispatcher(FilterMap filterMap, DispatcherType type) {
         switch (type) {
             case FORWARD :
-                if ((filterMap.getDispatcherMapping() & FilterMap.FORWARD) > 0) {
-                        return true;
+                if ((filterMap.getDispatcherMapping() & FilterMap.FORWARD) != 0) {
+                    return true;
                 }
                 break;
             case INCLUDE :
-                if ((filterMap.getDispatcherMapping() & FilterMap.INCLUDE) > 0) {
+                if ((filterMap.getDispatcherMapping() & FilterMap.INCLUDE) != 0) {
                     return true;
                 }
                 break;
             case REQUEST :
-                if ((filterMap.getDispatcherMapping() & FilterMap.REQUEST) > 0) {
+                if ((filterMap.getDispatcherMapping() & FilterMap.REQUEST) != 0) {
                     return true;
                 }
                 break;
             case ERROR :
-                if ((filterMap.getDispatcherMapping() & FilterMap.ERROR) > 0) {
+                if ((filterMap.getDispatcherMapping() & FilterMap.ERROR) != 0) {
                     return true;
                 }
                 break;
             case ASYNC :
-                if ((filterMap.getDispatcherMapping() & FilterMap.ASYNC) > 0) {
+                if ((filterMap.getDispatcherMapping() & FilterMap.ASYNC) != 0) {
                     return true;
                 }
                 break;

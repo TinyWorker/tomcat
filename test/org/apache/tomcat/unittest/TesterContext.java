@@ -116,6 +116,11 @@ public class TesterContext implements Context {
     }
 
     @Override
+    public String getLogName() {
+        return null;
+    }
+
+    @Override
     public ObjectName getObjectName() {
         return null;
     }
@@ -155,24 +160,26 @@ public class TesterContext implements Context {
         // NO-OP
     }
 
+    private String name = "/test";
     @Override
     public String getName() {
-        return null;
+        return name;
     }
 
     @Override
     public void setName(String name) {
-        // NO-OP
+        this.name = name;
     }
 
+    private Container parent = null;
     @Override
     public Container getParent() {
-        return null;
+        return parent;
     }
 
     @Override
     public void setParent(Container container) {
-        // NO-OP
+        this.parent = container;
     }
 
     @Override
@@ -753,12 +760,7 @@ public class TesterContext implements Context {
     }
 
     @Override
-    public void addServletMapping(String pattern, String name) {
-        // NO-OP
-    }
-
-    @Override
-    public void addServletMapping(String pattern, String name,
+    public void addServletMappingDecoded(String pattern, String name,
             boolean jspWildcard) {
         // NO-OP
     }
@@ -784,6 +786,11 @@ public class TesterContext implements Context {
     }
 
     @Override
+    public InstanceManager createInstanceManager() {
+        return null;
+    }
+
+    @Override
     public Wrapper createWrapper() {
         return null;
     }
@@ -805,6 +812,11 @@ public class TesterContext implements Context {
 
     @Override
     public ErrorPage findErrorPage(String exceptionType) {
+        return null;
+    }
+
+    @Override
+    public ErrorPage findErrorPage(Throwable exceptionType) {
         return null;
     }
 
@@ -1244,4 +1256,37 @@ public class TesterContext implements Context {
     public void setUseRelativeRedirects(boolean useRelativeRedirects) { /* NO-OP */ }
     @Override
     public boolean getUseRelativeRedirects() { return true; }
+
+    @Override
+    public void setDispatchersUseEncodedPaths(boolean dispatchersUseEncodedPaths) { /* NO-OP */ }
+    @Override
+    public boolean getDispatchersUseEncodedPaths() { return true; }
+
+    @Override
+    public void setRequestCharacterEncoding(String encoding) { /* NO-OP */ }
+    @Override
+    public String getRequestCharacterEncoding() { return null; }
+
+    @Override
+    public void setResponseCharacterEncoding(String encoding) { /* NO-OP */ }
+    @Override
+    public String getResponseCharacterEncoding() { return null; }
+
+    @Override
+    public void setAllowMultipleLeadingForwardSlashInPath(
+            boolean allowMultipleLeadingForwardSlashInPath) {
+        // NO-OP
+    }
+    @Override
+    public boolean getAllowMultipleLeadingForwardSlashInPath() { return false; }
+
+    @Override
+    public void incrementInProgressAsyncCount() { /* NO-OP */ }
+    @Override
+    public void decrementInProgressAsyncCount() { /* NO-OP */ }
+
+    @Override
+    public void setCreateUploadTargets(boolean createUploadTargets) { /* NO-OP */}
+    @Override
+    public boolean getCreateUploadTargets() { return false; }
 }

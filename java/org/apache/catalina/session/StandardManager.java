@@ -29,7 +29,7 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.List;
 
 import javax.servlet.ServletContext;
 
@@ -113,9 +113,6 @@ public class StandardManager extends ManagerBase {
 
     // ------------------------------------------------------------- Properties
 
-    /**
-     * Return the descriptive short name of this Manager implementation.
-     */
     @Override
     public String getName() {
         return name;
@@ -145,15 +142,6 @@ public class StandardManager extends ManagerBase {
 
     // --------------------------------------------------------- Public Methods
 
-    /**
-     * Load any currently active sessions that were previously unloaded
-     * to the appropriate persistence mechanism, if any.  If persistence is not
-     * supported, this method returns without doing anything.
-     *
-     * @exception ClassNotFoundException if a serialized class cannot be
-     *  found during the reload
-     * @exception IOException if an input/output error occurs
-     */
     @Override
     public void load() throws ClassNotFoundException, IOException {
         if (SecurityUtil.isPackageProtectionEnabled()){
@@ -201,89 +189,58 @@ public class StandardManager extends ManagerBase {
         if (log.isDebugEnabled()) {
             log.debug(sm.getString("standardManager.loading", pathname));
         }
-        FileInputStream fis = null;
-        BufferedInputStream bis = null;
-        ObjectInputStream ois;
         Loader loader = null;
         ClassLoader classLoader = null;
-        try {
-            fis = new FileInputStream(file.getAbsolutePath());
-            bis = new BufferedInputStream(fis);
+        Log logger = null;
+        try (FileInputStream fis = new FileInputStream(file.getAbsolutePath());
+                BufferedInputStream bis = new BufferedInputStream(fis)) {
             Context c = getContext();
-            if (c != null) {
-                loader = c.getLoader();
-            }
+            loader = c.getLoader();
+            logger = c.getLogger();
             if (loader != null) {
                 classLoader = loader.getClassLoader();
             }
             if (classLoader == null) {
                 classLoader = getClass().getClassLoader();
             }
-            ois = new CustomObjectInputStream(bis, classLoader);
+
+            // Load the previously unloaded active sessions
+            synchronized (sessions) {
+                try (ObjectInputStream ois = new CustomObjectInputStream(bis, classLoader, logger,
+                        getSessionAttributeValueClassNamePattern(),
+                        getWarnOnSessionAttributeFilterFailure())) {
+                    Integer count = (Integer) ois.readObject();
+                    int n = count.intValue();
+                    if (log.isDebugEnabled())
+                        log.debug("Loading " + n + " persisted sessions");
+                    for (int i = 0; i < n; i++) {
+                        StandardSession session = getNewSession();
+                        session.readObjectData(ois);
+                        session.setManager(this);
+                        sessions.put(session.getIdInternal(), session);
+                        session.activate();
+                        if (!session.isValidInternal()) {
+                            // If session is already invalid,
+                            // expire session to prevent memory leak.
+                            session.setValid(true);
+                            session.expire();
+                        }
+                        sessionCounter++;
+                    }
+                } finally {
+                    // Delete the persistent storage file
+                    if (file.exists()) {
+                        if (!file.delete()) {
+                            log.warn(sm.getString("standardManager.deletePersistedFileFail", file));
+                        }
+                    }
+                }
+            }
         } catch (FileNotFoundException e) {
             if (log.isDebugEnabled()) {
                 log.debug("No persisted data file found");
             }
             return;
-        } catch (IOException e) {
-            log.error(sm.getString("standardManager.loading.ioe", e), e);
-            if (fis != null) {
-                try {
-                    fis.close();
-                } catch (IOException f) {
-                    // Ignore
-                }
-            }
-            if (bis != null) {
-                try {
-                    bis.close();
-                } catch (IOException f) {
-                    // Ignore
-                }
-            }
-            throw e;
-        }
-
-        // Load the previously unloaded active sessions
-        synchronized (sessions) {
-            try {
-                Integer count = (Integer) ois.readObject();
-                int n = count.intValue();
-                if (log.isDebugEnabled())
-                    log.debug("Loading " + n + " persisted sessions");
-                for (int i = 0; i < n; i++) {
-                    StandardSession session = getNewSession();
-                    session.readObjectData(ois);
-                    session.setManager(this);
-                    sessions.put(session.getIdInternal(), session);
-                    session.activate();
-                    if (!session.isValidInternal()) {
-                        // If session is already invalid,
-                        // expire session to prevent memory leak.
-                        session.setValid(true);
-                        session.expire();
-                    }
-                    sessionCounter++;
-                }
-            } catch (ClassNotFoundException e) {
-                log.error(sm.getString("standardManager.loading.cnfe", e), e);
-                throw e;
-            } catch (IOException e) {
-                log.error(sm.getString("standardManager.loading.ioe", e), e);
-                throw e;
-            } finally {
-                // Close the input stream
-                try {
-                    ois.close();
-                } catch (IOException f) {
-                    // ignored
-                }
-
-                // Delete the persistent storage file
-                if (file.exists()) {
-                    file.delete();
-                }
-            }
         }
 
         if (log.isDebugEnabled()) {
@@ -292,13 +249,6 @@ public class StandardManager extends ManagerBase {
     }
 
 
-    /**
-     * Save any currently active sessions in the appropriate persistence
-     * mechanism, if any.  If persistence is not supported, this method
-     * returns without doing anything.
-     *
-     * @exception IOException if an input/output error occurs
-     */
     @Override
     public void unload() throws IOException {
         if (SecurityUtil.isPackageProtectionEnabled()) {
@@ -326,7 +276,6 @@ public class StandardManager extends ManagerBase {
      *
      * @exception IOException if an input/output error occurs
      */
-    @SuppressWarnings("null")
     protected void doUnload() throws IOException {
 
         if (log.isDebugEnabled())
@@ -345,80 +294,26 @@ public class StandardManager extends ManagerBase {
         if (log.isDebugEnabled()) {
             log.debug(sm.getString("standardManager.unloading", pathname));
         }
-        FileOutputStream fos = null;
-        BufferedOutputStream bos = null;
-        ObjectOutputStream oos = null;
-        boolean error = false;
-        try {
-            fos = new FileOutputStream(file.getAbsolutePath());
-            bos = new BufferedOutputStream(fos);
-            oos = new ObjectOutputStream(bos);
-        } catch (IOException e) {
-            error = true;
-            log.error(sm.getString("standardManager.unloading.ioe", e), e);
-            throw e;
-        } finally {
-            if (error) {
-                if (oos != null) {
-                    try {
-                        oos.close();
-                    } catch (IOException ioe) {
-                        // Ignore
-                    }
-                }
-                if (bos != null) {
-                    try {
-                        bos.close();
-                    } catch (IOException ioe) {
-                        // Ignore
-                    }
-                }
-                if (fos != null) {
-                    try {
-                        fos.close();
-                    } catch (IOException ioe) {
-                        // Ignore
-                    }
-                }
-            }
-        }
 
-        // Write the number of active sessions, followed by the details
-        ArrayList<StandardSession> list = new ArrayList<>();
-        synchronized (sessions) {
-            if (log.isDebugEnabled()) {
-                log.debug("Unloading " + sessions.size() + " sessions");
-            }
-            try {
-                // oos can't be null here
+        // Keep a note of sessions that are expired
+        List<StandardSession> list = new ArrayList<>();
+
+        try (FileOutputStream fos = new FileOutputStream(file.getAbsolutePath());
+                BufferedOutputStream bos = new BufferedOutputStream(fos);
+                ObjectOutputStream oos = new ObjectOutputStream(bos)) {
+
+            synchronized (sessions) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Unloading " + sessions.size() + " sessions");
+                }
+                // Write the number of active sessions, followed by the details
                 oos.writeObject(Integer.valueOf(sessions.size()));
-                Iterator<Session> elements = sessions.values().iterator();
-                while (elements.hasNext()) {
-                    StandardSession session =
-                        (StandardSession) elements.next();
+                for (Session s : sessions.values()) {
+                    StandardSession session = (StandardSession) s;
                     list.add(session);
                     session.passivate();
                     session.writeObjectData(oos);
                 }
-            } catch (IOException e) {
-                log.error(sm.getString("standardManager.unloading.ioe", e), e);
-                try {
-                    oos.close();
-                } catch (IOException f) {
-                    // Ignore
-                }
-                throw e;
-            }
-        }
-
-        // Flush and close the output stream
-        try {
-            oos.flush();
-        } finally {
-            try {
-                oos.close();
-            } catch (IOException f) {
-                // Ignore
             }
         }
 
@@ -426,9 +321,7 @@ public class StandardManager extends ManagerBase {
         if (log.isDebugEnabled()) {
             log.debug("Expiring " + list.size() + " persisted sessions");
         }
-        Iterator<StandardSession> expires = list.iterator();
-        while (expires.hasNext()) {
-            StandardSession session = expires.next();
+        for (StandardSession session : list) {
             try {
                 session.expire(false);
             } catch (Throwable t) {
@@ -519,23 +412,21 @@ public class StandardManager extends ManagerBase {
     /**
      * Return a File object representing the pathname to our
      * persistence file, if any.
+     * @return the file
      */
     protected File file() {
-        if ((pathname == null) || (pathname.length() == 0))
-            return (null);
+        if (pathname == null || pathname.length() == 0) {
+            return null;
+        }
         File file = new File(pathname);
         if (!file.isAbsolute()) {
             Context context = getContext();
-            if (context != null) {
-                ServletContext servletContext = context.getServletContext();
-                File tempdir = (File)
-                    servletContext.getAttribute(ServletContext.TEMPDIR);
-                if (tempdir != null)
-                    file = new File(tempdir, pathname);
+            ServletContext servletContext = context.getServletContext();
+            File tempdir = (File) servletContext.getAttribute(ServletContext.TEMPDIR);
+            if (tempdir != null) {
+                file = new File(tempdir, pathname);
             }
         }
-//        if (!file.isAbsolute())
-//            return (null);
         return file;
     }
 }

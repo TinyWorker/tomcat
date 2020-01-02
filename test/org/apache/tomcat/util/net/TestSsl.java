@@ -29,8 +29,6 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
-import static org.junit.Assert.assertTrue;
-
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -66,7 +64,9 @@ public class TestSsl extends TomcatBaseTest {
         tomcat.start();
         ByteChunk res = getUrl("https://localhost:" + getPort() +
             "/examples/servlets/servlet/HelloWorldExample");
-        assertTrue(res.toString().indexOf("<h1>Hello World!</h1>") > 0);
+        Assert.assertTrue(res.toString().indexOf("<a href=\"../helloworld.html\">") > 0);
+        Assert.assertTrue("Checking no client issuer has been requested",
+                TesterSupport.getLastClientAuthRequestedIssuerCount() == 0);
     }
 
     @Test
@@ -80,13 +80,15 @@ public class TestSsl extends TomcatBaseTest {
                 null, "/examples", appDir.getAbsolutePath());
         ctxt.addApplicationListener(WsContextListener.class.getName());
 
-        TesterSupport.initSsl(tomcat, "localhost-copy1.jks", "changeit",
-                "tomcatpass");
+        TesterSupport.initSsl(tomcat, TesterSupport.LOCALHOST_KEYPASS_JKS,
+                TesterSupport.JKS_PASS, TesterSupport.JKS_KEY_PASS);
 
         tomcat.start();
         ByteChunk res = getUrl("https://localhost:" + getPort() +
             "/examples/servlets/servlet/HelloWorldExample");
-        assertTrue(res.toString().indexOf("<h1>Hello World!</h1>") > 0);
+        Assert.assertTrue(res.toString().indexOf("<a href=\"../helloworld.html\">") > 0);
+        Assert.assertTrue("Checking no client issuer has been requested",
+                TesterSupport.getLastClientAuthRequestedIssuerCount() == 0);
     }
 
 
@@ -101,13 +103,21 @@ public class TestSsl extends TomcatBaseTest {
         Wrapper w =
             Tomcat.addServlet(root, "tester", new TesterServlet());
         w.setAsyncSupported(true);
-        root.addServletMapping("/", "tester");
+        root.addServletMappingDecoded("/", "tester");
 
         TesterSupport.initSsl(tomcat);
 
         tomcat.start();
 
-        SSLContext sslCtx = SSLContext.getInstance("TLS");
+        SSLContext sslCtx;
+        if (TesterSupport.isDefaultTLSProtocolForTesting13(tomcat.getConnector())) {
+            // Force TLS 1.2 if TLS 1.3 is available as JSSE's TLS 1.3
+            // implementation doesn't support Post Handshake Authentication
+            // which is required for this test to pass.
+            sslCtx = SSLContext.getInstance(Constants.SSL_PROTO_TLSv1_2);
+        } else {
+            sslCtx = SSLContext.getInstance(Constants.SSL_PROTO_TLS);
+        }
         sslCtx.init(null, TesterSupport.getTrustManagers(), null);
         SSLSocketFactory socketFactory = sslCtx.getSocketFactory();
         SSLSocket socket = (SSLSocket) socketFactory.createSocket("localhost",
@@ -118,32 +128,25 @@ public class TestSsl extends TomcatBaseTest {
         Reader r = new InputStreamReader(is);
 
         doRequest(os, r);
+        Assert.assertTrue("Checking no client issuer has been requested",
+                TesterSupport.getLastClientAuthRequestedIssuerCount() == 0);
 
         TesterHandshakeListener listener = new TesterHandshakeListener();
         socket.addHandshakeCompletedListener(listener);
 
         socket.startHandshake();
 
-        // One request should be sufficient
-        int requestCount = 0;
-        int listenerComplete = 0;
-        try {
-            while (requestCount < 10) {
-                requestCount++;
-                doRequest(os, r);
-                if (listener.isComplete() && listenerComplete == 0) {
-                    listenerComplete = requestCount;
-                }
-            }
-        } catch (AssertionError | IOException e) {
-            String message = "Failed on request number " + requestCount
-                    + " after startHandshake(). " + e.getMessage();
-            log.error(message, e);
-            Assert.fail(message);
+        doRequest(os, r);
+        // Handshake complete appears to be called asynchronously
+        int wait = 0;
+        while (wait < 5000 && !listener.isComplete()) {
+            wait += 50;
+            Thread.sleep(50);
         }
-
+        Assert.assertTrue("Checking no client issuer has been requested",
+                TesterSupport.getLastClientAuthRequestedIssuerCount() == 0);
         Assert.assertTrue(listener.isComplete());
-        System.out.println("Renegotiation completed after " + listenerComplete + " requests");
+        System.out.println("Renegotiation completed after " + wait + " ms");
     }
 
     private void doRequest(OutputStream os, Reader r) throws IOException {
